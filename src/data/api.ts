@@ -3,6 +3,7 @@ import { calcularFolha, type EntradaFolha, type ResultadoFolha } from '@/core/fo
 import type { PontoRegistro, StatusPonto } from '@/core/types'
 import { getSupabase, isSupabaseConfigured } from '@/lib/supabase'
 import { localStore, novoId } from './localStore'
+import { emitDataChange } from './events'
 import type {
   Colaborador,
   Database,
@@ -197,7 +198,7 @@ async function sbUpsert<T>(table: string, payload: object): Promise<T> {
 // Facade publica
 // ---------------------------------------------------------------------------
 
-export const api = {
+const apiBase = {
   modo: isSupabaseConfigured ? ('supabase' as const) : ('local' as const),
 
   async listObras(): Promise<Obra[]> {
@@ -440,6 +441,42 @@ export const api = {
     localStore.reset()
   },
 }
+
+/**
+ * Metodos que alteram dados. Apos cada um deles concluir com sucesso,
+ * emitimos um evento global para que todas as telas recarreguem sozinhas.
+ */
+const METODOS_DE_ESCRITA = new Set<string>([
+  'upsertObra',
+  'removeObra',
+  'upsertColaborador',
+  'toggleColaborador',
+  'createPonto',
+  'updatePonto',
+  'setStatusPontos',
+  'removePonto',
+  'createProducao',
+  'upsertFechamento',
+  'updateFechamento',
+  'createLancamento',
+  'markLancamentoPago',
+  'fecharFolha',
+  'resetDemo',
+])
+
+export const api = new Proxy(apiBase, {
+  get(alvo, prop, receiver) {
+    const valor = Reflect.get(alvo, prop, receiver)
+    if (typeof valor === 'function' && typeof prop === 'string' && METODOS_DE_ESCRITA.has(prop)) {
+      return async (...args: unknown[]) => {
+        const resultado = await (valor as (...a: unknown[]) => Promise<unknown>).apply(alvo, args)
+        emitDataChange()
+        return resultado
+      }
+    }
+    return valor
+  },
+}) as typeof apiBase
 
 export type Api = typeof api
 export type { Database, FolhaItem }

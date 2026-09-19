@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from './api'
-import { localStore } from './localStore'
+import { onDataChange } from './events'
+import { getSupabase, isSupabaseConfigured } from '@/lib/supabase'
 import type {
   Colaborador,
   Fechamento,
@@ -30,7 +31,10 @@ export function useAppData(): AppData {
   const [lancamentos, setLancamentos] = useState<LancamentoFinanceiro[]>([])
   const [carregando, setCarregando] = useState(true)
 
+  const requisicaoRef = useRef(0)
+
   const recarregar = useCallback(async () => {
+    const requisicao = ++requisicaoRef.current
     const [o, c, p, pr, f, l] = await Promise.all([
       api.listObras(),
       api.listColaboradores(),
@@ -39,6 +43,8 @@ export function useAppData(): AppData {
       api.listFechamentos(),
       api.listLancamentos(),
     ])
+    // Ignora respostas antigas que cheguem fora de ordem.
+    if (requisicao !== requisicaoRef.current) return
     setObras(o)
     setColaboradores(c)
     setPontos(p)
@@ -52,11 +58,54 @@ export function useAppData(): AppData {
     recarregar()
   }, [recarregar])
 
+  // Toda gravacao feita via `api` dispara um evento; aqui recarregamos os dados.
+  // O debounce agrupa rajadas (ex.: fechamento de folha com varios registros).
   useEffect(() => {
-    if (api.modo !== 'local') return
-    return localStore.subscribe(() => {
-      recarregar()
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const cancelar = onDataChange(() => {
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => {
+        timer = null
+        void recarregar()
+      }, 120)
     })
+    return () => {
+      cancelar()
+      if (timer) clearTimeout(timer)
+    }
+  }, [recarregar])
+
+  // Realtime: quando outro dispositivo/colaborador grava, o Supabase avisa
+  // e recarregamos. So faz sentido no modo supabase.
+  useEffect(() => {
+    if (!isSupabaseConfigured) return
+    const supabase = getSupabase()
+    let timer: ReturnType<typeof setTimeout> | null = null
+
+    const channel = supabase.channel('pontoflow-dados')
+    for (const tabela of [
+      'profiles',
+      'obras',
+      'colaboradores',
+      'pontos',
+      'producao',
+      'fechamentos',
+      'lancamentos',
+    ]) {
+      channel.on('postgres_changes', { event: '*', schema: 'public', table: tabela }, () => {
+        if (timer) clearTimeout(timer)
+        timer = setTimeout(() => {
+          timer = null
+          void recarregar()
+        }, 200)
+      })
+    }
+    channel.subscribe()
+
+    return () => {
+      if (timer) clearTimeout(timer)
+      void supabase.removeChannel(channel)
+    }
   }, [recarregar])
 
   return {
