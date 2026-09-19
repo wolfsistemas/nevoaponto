@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Clock, Lock, ShieldCheck, User, Wallet } from 'lucide-react'
 import { useAuth } from './AuthContext'
@@ -20,6 +20,13 @@ export function LoginPage() {
   const [senha, setSenha] = useState('')
   const [erro, setErro] = useState('')
   const [carregando, setCarregando] = useState(false)
+
+  // O Super Admin tem um portal exclusivo (admin.html) fora do app comum.
+  useEffect(() => {
+    if (login.trim().toLowerCase() === 'superadmin') {
+      window.location.assign(`${import.meta.env.BASE_URL}admin.html`)
+    }
+  }, [login])
 
   async function entrar(e: FormEvent) {
     e.preventDefault()

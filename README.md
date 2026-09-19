@@ -78,6 +78,14 @@ VITE_USE_SUPABASE=true
 No login com Supabase, o campo "usuario" e convertido para
 `usuario@pontoflow.app`. Crie os usuarios do Auth com esse padrao de e-mail.
 
+### Portal do Super Admin
+
+O Super Admin tem um portal exclusivo, servido por `admin.html` (fora do app
+comum). Ao digitar `superadmin` no login, o usuario e redirecionado
+automaticamente para `/admin.html`. O portal exige autenticacao e so aceita o
+perfil `superadmin`; qualquer outro perfil e deslogado. A pagina nao e
+indexada por buscadores (`noindex`).
+
 ## Billing (Mercado Pago)
 
 A cobrança recorrente usa assinaturas (preapproval) do Mercado Pago. O frontend
