@@ -17,6 +17,7 @@ import { AprovacaoPage } from '@/features/ponto/AprovacaoPage'
 import { FolhaPage } from '@/features/folha/FolhaPage'
 import { PagamentosPage } from '@/features/pagamentos/PagamentosPage'
 import { RelatoriosPage } from '@/features/relatorios/RelatoriosPage'
+import { AssinaturaPage } from '@/features/billing/AssinaturaPage'
 import { SuperAdminPage } from '@/features/superadmin/SuperAdminPage'
 import { TermosPage } from '@/features/legal/TermosPage'
 import { PrivacidadePage } from '@/features/legal/PrivacidadePage'
@@ -57,6 +58,7 @@ export default function App() {
                 <Route path={ROUTES.folha} element={<FolhaPage />} />
                 <Route path={ROUTES.pagamentos} element={<PagamentosPage />} />
                 <Route path={ROUTES.relatorios} element={<RelatoriosPage />} />
+                <Route path={ROUTES.assinatura} element={<AssinaturaPage />} />
                 <Route
                   path={ROUTES.superadmin}
                   element={

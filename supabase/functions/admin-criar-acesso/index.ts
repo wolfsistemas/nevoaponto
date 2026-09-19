@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
     if (!login || !/^[a-z0-9._-]+$/.test(login)) {
       return json({ error: 'Login invalido. Use letras, numeros, ponto, hifen ou underline.' }, 400)
     }
-    if (senha.length < 6) return json({ error: 'A senha deve ter ao menos 6 caracteres.' }, 400)
+    if (senha.length < 8) return json({ error: 'A senha deve ter ao menos 8 caracteres.' }, 400)
 
     const emailInformado = String(body.email ?? '').trim().toLowerCase()
     const email = emailInformado || (login.includes('@') ? login : `${login}@pontoflow.app`)

@@ -149,7 +149,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         await api.criarConta(input)
         const res = await signIn(input.email, input.senha)
-        return res.ok ? { ok: true } : { ok: true }
+        // A conta ja foi criada; se o login automatico falhar, orientamos a entrar.
+        return res.ok
+          ? { ok: true }
+          : {
+              ok: false,
+              erro: 'Conta criada, mas nao foi possivel entrar automaticamente. Faca login.',
+            }
       } catch (erro) {
         return {
           ok: false,

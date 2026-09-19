@@ -1,10 +1,11 @@
-import { calcularTotalDiarias } from '@/core/ponto'
+import { calcularTotalDiarias, proximaMatricula } from '@/core/ponto'
 import { calcularFolha, type EntradaFolha, type ResultadoFolha } from '@/core/folha'
 import type { PontoRegistro, StatusPonto } from '@/core/types'
 import { getSupabase, isSupabaseConfigured } from '@/lib/supabase'
 import { localStore, novoId } from './localStore'
 import { emitDataChange } from './events'
 import type {
+  Assinatura,
   Auditoria,
   Colaborador,
   Database,
@@ -13,6 +14,7 @@ import type {
   FolhaItem,
   LancamentoFinanceiro,
   Obra,
+  Pagamento,
   Plano,
   ProducaoTerc,
   Profile,
@@ -29,9 +31,31 @@ export interface ApuracaoCompetencia {
 
 const round2 = (v: number) => Math.round(v * 100) / 100
 
+/** Extrai a mensagem de erro de uma FunctionsHttpError do supabase-js. */
+async function mensagemDaFunction(error: unknown): Promise<string> {
+  const mensagem = error instanceof Error ? error.message : String(error)
+  const contexto = (error as { context?: Response }).context
+  if (contexto && typeof contexto.json === 'function') {
+    try {
+      const corpo = (await contexto.json()) as { error?: string }
+      if (corpo?.error) return corpo.error
+    } catch {
+      // mantem a mensagem original
+    }
+  }
+  return mensagem
+}
+
 function competenciaDe(data: string): string {
   const d = new Date(data)
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
+}
+
+/** Ultimo dia real da competencia (ex.: 2026-02 -> 2026-02-28). */
+function competenciaFim(competencia: string): string {
+  const [ano, mes] = competencia.split('-').map(Number)
+  const ultimo = new Date(Date.UTC(ano, mes, 0)).getUTCDate()
+  return `${competencia}-${String(ultimo).padStart(2, '0')}`
 }
 
 // ---------------------------------------------------------------------------
@@ -62,17 +86,20 @@ const local = {
   },
   upsertColaborador(input: Partial<Colaborador> & { nome: string }): Colaborador {
     const db = localStore.get()
+    const tipo = input.tipo_contrato ?? 'DIARISTA'
+    const existente = input.id ? db.colaboradores.find((c) => c.id === input.id) : undefined
+    const usaMatricula = tipo === 'CLT' || tipo === 'DIARISTA'
+    const matricula =
+      input.matricula ??
+      existente?.matricula ??
+      (usaMatricula ? proximaMatricula(db.colaboradores.map((c) => c.matricula)) : null)
     const registro: Colaborador = {
+      ...input,
       id: input.id ?? novoId('colab'),
-      tipo_contrato: input.tipo_contrato ?? 'DIARISTA',
+      tipo_contrato: tipo,
       ativo: input.ativo ?? true,
       obra_id: input.obra_id ?? null,
-      matricula:
-        input.matricula ??
-        (input.tipo_contrato === 'CLT' || input.tipo_contrato === 'DIARISTA'
-          ? Math.max(0, ...db.colaboradores.map((c) => c.matricula ?? 0)) + 1 || 133
-          : null),
-      ...input,
+      matricula,
     } as Colaborador
     localStore.mutate((database) => {
       const i = database.colaboradores.findIndex((c) => c.id === registro.id)
@@ -227,9 +254,19 @@ const apiBase = {
   async upsertColaborador(
     input: Partial<Colaborador> & { nome: string },
   ): Promise<Colaborador> {
-    return isSupabaseConfigured
-      ? sbUpsert<Colaborador>('colaboradores', input as Colaborador)
-      : local.upsertColaborador(input)
+    if (isSupabaseConfigured) {
+      const tipo = input.tipo_contrato ?? 'DIARISTA'
+      if (input.matricula == null && (tipo === 'CLT' || tipo === 'DIARISTA')) {
+        const existentes = await sbList<Colaborador>('colaboradores')
+        const atual = input.id ? existentes.find((c) => c.id === input.id) : undefined
+        input = {
+          ...input,
+          matricula: atual?.matricula ?? proximaMatricula(existentes.map((c) => c.matricula)),
+        }
+      }
+      return sbUpsert<Colaborador>('colaboradores', input as Colaborador)
+    }
+    return local.upsertColaborador(input)
   },
   async toggleColaborador(id: string): Promise<void> {
     if (isSupabaseConfigured) {
@@ -412,6 +449,43 @@ const apiBase = {
   async listPlanos(): Promise<Plano[]> {
     return isSupabaseConfigured ? sbList<Plano>('planos') : []
   },
+
+  async listAssinaturas(): Promise<Assinatura[]> {
+    return isSupabaseConfigured ? sbList<Assinatura>('assinaturas') : []
+  },
+  async listPagamentos(limite = 50): Promise<Pagamento[]> {
+    if (!isSupabaseConfigured) return []
+    const { data, error } = await getSupabase()
+      .from('pagamentos')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(limite)
+    if (error) throw error
+    return (data ?? []) as Pagamento[]
+  },
+  async criarAssinatura(planoId: string, empresaId?: string): Promise<{ init_point: string }> {
+    if (!isSupabaseConfigured) {
+      throw new Error('Assinatura disponivel apenas com o Supabase configurado.')
+    }
+    const { data, error } = await getSupabase().functions.invoke('billing-assinatura', {
+      body: { acao: 'criar', plano_id: planoId, empresa_id: empresaId },
+    })
+    if (error) throw new Error(await mensagemDaFunction(error))
+    const payload = data as { error?: string; init_point?: string }
+    if (payload?.error) throw new Error(payload.error)
+    return { init_point: payload.init_point ?? '' }
+  },
+  async cancelarAssinatura(empresaId?: string): Promise<void> {
+    if (!isSupabaseConfigured) {
+      throw new Error('Assinatura disponivel apenas com o Supabase configurado.')
+    }
+    const { data, error } = await getSupabase().functions.invoke('billing-assinatura', {
+      body: { acao: 'cancelar', empresa_id: empresaId },
+    })
+    if (error) throw new Error(await mensagemDaFunction(error))
+    const payload = data as { error?: string }
+    if (payload?.error) throw new Error(payload.error)
+  },
   async listAuditoria(limite = 200): Promise<Auditoria[]> {
     if (!isSupabaseConfigured) return []
     const { data, error } = await getSupabase()
@@ -486,15 +560,34 @@ const apiBase = {
 
   /** Fecha a folha, marcando pontos/producao e gerando lancamentos financeiros. */
   async fecharFolha(apuracao: ApuracaoCompetencia): Promise<number> {
-    const colaboradores = await api.listColaboradores()
-    const pontos = await api.listPontos()
-    const producao = await api.listProducao()
+    const [colaboradores, pontos, fechamentos] = await Promise.all([
+      api.listColaboradores(),
+      api.listPontos(),
+      api.listFechamentos(),
+    ])
     let lancamentos = 0
 
     for (const item of apuracao.itens) {
       if (item.totalProventos <= 0) continue
       const c = colaboradores.find((x) => x.id === item.colaborador_id)
       if (!c) continue
+
+      // Idempotencia: nao gera pagamento duplicado para a mesma competencia.
+      const jaFechado = fechamentos.some(
+        (f) =>
+          f.colaborador_id === c.id &&
+          (f.periodo_inicio ?? '').startsWith(apuracao.competencia),
+      )
+      if (jaFechado) continue
+
+      // Somente pontos validados e ainda nao pagos entram no fechamento.
+      const pontosColab = pontos.filter(
+        (p) =>
+          p.colaborador_id === c.id &&
+          competenciaDe(p.hora_registro) === apuracao.competencia &&
+          p.status === 'VALIDADO' &&
+          !p.pago_em_fechamento,
+      )
 
       // Lancamento financeiro da mao de obra liquida
       await api.createLancamento({
@@ -510,9 +603,6 @@ const apiBase = {
       lancamentos += 1
 
       // Marca pontos como pagos
-      const pontosColab = pontos.filter(
-        (p) => p.colaborador_id === c.id && competenciaDe(p.hora_registro) === apuracao.competencia,
-      )
       for (const p of pontosColab) {
         await api.updatePonto(p.id, { pago_em_fechamento: true })
       }
@@ -522,7 +612,7 @@ const apiBase = {
         colaborador_id: c.id,
         obra_id: c.obra_id ?? null,
         periodo_inicio: `${apuracao.competencia}-01`,
-        periodo_fim: `${apuracao.competencia}-31`,
+        periodo_fim: competenciaFim(apuracao.competencia),
         total_diarias: calcularTotalDiarias(pontosColab),
         valor_diaria: c.valor_diaria ?? 0,
         valor_bruto: item.totalProventos,
@@ -533,7 +623,6 @@ const apiBase = {
         observacao: `Competencia ${apuracao.competencia}`,
       })
     }
-    void producao
     return lancamentos
   },
 
@@ -562,6 +651,8 @@ const METODOS_DE_ESCRITA = new Set<string>([
   'markLancamentoPago',
   'upsertEmpresa',
   'upsertPerfil',
+  'criarAssinatura',
+  'cancelarAssinatura',
   'fecharFolha',
   'resetDemo',
 ])

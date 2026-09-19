@@ -13,7 +13,7 @@ import { Field, Select } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/toast'
 import { CameraCaptureDialog, type CapturaPonto } from './CameraCaptureDialog'
-import { formatDate, formatTime, todayISO } from '@/lib/format'
+import { formatDate, formatTime, todayISO, wallClockISO } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 type GpsEstado = 'aguardando' | 'ok' | 'erro'
@@ -81,12 +81,12 @@ export function PontoPage() {
   }
 
   const distancia = useMemo(() => {
-    if (gps.estado !== 'ok' || !obra?.lat || !obra?.lng || gps.lat == null || gps.lng == null) return null
+    if (gps.estado !== 'ok' || obra?.lat == null || obra?.lng == null || gps.lat == null || gps.lng == null) return null
     return distanciaMetros(gps.lat, gps.lng, obra.lat, obra.lng)
   }, [gps, obra])
 
   const dentro = useMemo(() => {
-    if (!obra?.lat || !obra?.lng || gps.lat == null || gps.lng == null) return false
+    if (obra?.lat == null || obra?.lng == null || gps.lat == null || gps.lng == null) return false
     return dentroDoPerimetro(
       gps.lat,
       gps.lng,
@@ -142,7 +142,7 @@ export function PontoPage() {
         colaborador_id: colaborador.id,
         obra_id: obra.id,
         tipo: proximoTipo,
-        hora_registro: new Date().toISOString(),
+        hora_registro: wallClockISO(),
         status: 'PENDENTE',
         origem: 'APP',
         lat_registro: gps.lat != null ? String(gps.lat) : null,

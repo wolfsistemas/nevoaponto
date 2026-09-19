@@ -72,6 +72,18 @@ export function todayISO(date = new Date()): string {
   return `${y}-${m}-${day}`
 }
 
+/**
+ * Instante ISO cujos campos UTC representam o relogio local ("relogio de
+ * parede"). O sistema armazena o ponto como relogio de parede nos campos UTC
+ * (mesma convencao do seed e do historico legado), entao gravar com
+ * `toISOString()` puro deslocaria o horario exibido em relacao ao relogio do
+ * usuario em fusos como America/Sao_Paulo (UTC-3).
+ */
+export function wallClockISO(date = new Date()): string {
+  const offsetMs = date.getTimezoneOffset() * 60_000
+  return new Date(date.getTime() - offsetMs).toISOString()
+}
+
 export function competenciaLabel(competencia: string): string {
   const [ano, mes] = competencia.split('-')
   const nomes = [

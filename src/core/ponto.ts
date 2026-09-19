@@ -249,20 +249,30 @@ export function periodoDaHora(hora: number): Periodo {
   return hora >= 4 && hora < 12 ? 'MANHA' : 'TARDE'
 }
 
-/** Verifica se ha ENTRADA/AJUSTE no mesmo periodo (manha/tarde) do dia. */
+/** Dia (UTC-as-walltime) de um registro, no formato YYYY-MM-DD. */
+export function diaDoRegistro(horaRegistro: string): string {
+  return new Date(horaRegistro).toISOString().slice(0, 10)
+}
+
+/**
+ * Verifica se ha ENTRADA/AJUSTE no mesmo periodo (manha/tarde) do dia.
+ * Compara datas e horas ja interpretadas (o registro guarda o relogio de
+ * parede nos campos UTC), evitando comparacao lexicografica de formatos
+ * diferentes (ISO com "T" vs. "YYYY-MM-DD HH:mm:ss").
+ */
 export function existeEntradaNoPeriodo(
   registros: PontoRegistro[],
   dataISO: string,
   hora: string,
 ): boolean {
   const h = Number.parseInt(hora.split(':')[0] ?? '0', 10)
-  const [ini, fim] = h >= 4 && h < 12 ? ['04:00:00', '11:59:59'] : ['12:00:00', '19:00:00']
-  return registros.some(
-    (r) =>
-      (r.tipo === 'ENTRADA' || r.tipo === 'AJUSTE_MANUAL') &&
-      r.hora_registro >= `${dataISO} ${ini}` &&
-      r.hora_registro <= `${dataISO} ${fim}`,
-  )
+  const ehManha = h >= 4 && h < 12
+  return registros.some((r) => {
+    if (r.tipo !== 'ENTRADA' && r.tipo !== 'AJUSTE_MANUAL') return false
+    if (diaDoRegistro(r.hora_registro) !== dataISO) return false
+    const hr = new Date(r.hora_registro).getUTCHours()
+    return ehManha ? hr >= 4 && hr < 12 : hr >= 12 && hr < 19
+  })
 }
 
 /** Proximo numero de matricula (max + 1), iniciando em 133. */

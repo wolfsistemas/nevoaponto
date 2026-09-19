@@ -129,9 +129,9 @@ describe('regras auxiliares', () => {
 
   it('detecta entrada no periodo', () => {
     const registros = [reg('ENTRADA', '08:00:00')]
-    registros[0].hora_registro = '2026-09-19 08:00:00'
     expect(existeEntradaNoPeriodo(registros, '2026-09-19', '09:00')).toBe(true)
     expect(existeEntradaNoPeriodo(registros, '2026-09-19', '14:00')).toBe(false)
+    expect(existeEntradaNoPeriodo(registros, '2026-09-20', '09:00')).toBe(false)
   })
 
   it('usa configuracao padrao', () => {

@@ -16,6 +16,7 @@ sem backend próprio). Enquanto as credenciais não são configuradas, o app rod
 - Folha com encargos CLT (INSS, IRRF, FGTS, provisões de 13º e férias) com tabelas legais parametrizáveis.
 - Aprovação de ponto e fechamento por competência.
 - Financeiro (lançamentos), relatórios e perfis de acesso (admin, encarregado, funcionário).
+- Assinatura/planos com cobrança recorrente via Mercado Pago (checkout + webhook).
 
 ## Stack
 
@@ -50,8 +51,8 @@ npm run test:watch   # testes em watch
 ## Configuracao do Supabase
 
 1. Crie um projeto novo em <https://supabase.com>.
-2. Aplique as migrations em `supabase/migrations/` (via `supabase db push` ou colando
-   `0001_init.sql` e `0002_rls.sql` no SQL Editor, nesta ordem).
+2. Aplique as migrations em `supabase/migrations/` na ordem (`0001` a `0006`),
+   via `supabase db push` ou colando cada arquivo no SQL Editor.
 3. Crie o primeiro usuario admin (`Authentication > Users`) e rode `supabase/bootstrap.sql`.
 4. Copie `.env.example` para `.env` e preencha:
 
@@ -76,6 +77,35 @@ VITE_USE_SUPABASE=true
 
 No login com Supabase, o campo "usuario" e convertido para
 `usuario@pontoflow.app`. Crie os usuarios do Auth com esse padrao de e-mail.
+
+## Billing (Mercado Pago)
+
+A cobrança recorrente usa assinaturas (preapproval) do Mercado Pago. O frontend
+nunca vê o token; toda chamada sensível passa por Edge Functions.
+
+- `billing-assinatura` (`verify_jwt = true`): cria o checkout da assinatura
+  (ação `criar`) ou cancela (`cancelar`). Somente admin da empresa/superadmin.
+- `billing-webhook` (`verify_jwt = false`): recebe as notificações do Mercado
+  Pago, atualiza `assinaturas`, `pagamentos` e o status/plano da `empresa`.
+  Valida o header `x-signature` quando `MP_WEBHOOK_SECRET` está definido.
+
+Configure os segredos nas Edge Functions (Dashboard > Project Settings > Edge
+Functions > Secrets, ou `supabase secrets set`). Veja
+`supabase/functions/.env.example`:
+
+```env
+MP_ACCESS_TOKEN=SEU_ACCESS_TOKEN
+MP_WEBHOOK_SECRET=SEU_SEGREDO_DO_WEBHOOK
+APP_URL=https://seu-dominio.com/caminho
+```
+
+No Mercado Pago, aponte a URL de notificação (webhook) para
+`https://SEU-PROJETO.supabase.co/functions/v1/billing-webhook` e assine os
+eventos de `preapproval` e `payment`. O app lê planos, assinatura e histórico
+direto das tabelas `planos`, `assinaturas` e `pagamentos` (RLS por empresa).
+
+> Sem `MP_ACCESS_TOKEN`, a tela de assinatura informa que o Mercado Pago ainda
+> não foi configurado — nada é cobrado.
 
 ## Deploy no GitHub Pages
 

@@ -35,23 +35,28 @@ export function useAppData(): AppData {
 
   const recarregar = useCallback(async () => {
     const requisicao = ++requisicaoRef.current
-    const [o, c, p, pr, f, l] = await Promise.all([
-      api.listObras(),
-      api.listColaboradores(),
-      api.listPontos(),
-      api.listProducao(),
-      api.listFechamentos(),
-      api.listLancamentos(),
-    ])
-    // Ignora respostas antigas que cheguem fora de ordem.
-    if (requisicao !== requisicaoRef.current) return
-    setObras(o)
-    setColaboradores(c)
-    setPontos(p)
-    setProducao(pr)
-    setFechamentos(f)
-    setLancamentos(l)
-    setCarregando(false)
+    try {
+      const [o, c, p, pr, f, l] = await Promise.all([
+        api.listObras(),
+        api.listColaboradores(),
+        api.listPontos(),
+        api.listProducao(),
+        api.listFechamentos(),
+        api.listLancamentos(),
+      ])
+      // Ignora respostas antigas que cheguem fora de ordem.
+      if (requisicao !== requisicaoRef.current) return
+      setObras(o)
+      setColaboradores(c)
+      setPontos(p)
+      setProducao(pr)
+      setFechamentos(f)
+      setLancamentos(l)
+    } catch {
+      // Falha de rede/RLS: mantem os dados anteriores em tela.
+    } finally {
+      if (requisicao === requisicaoRef.current) setCarregando(false)
+    }
   }, [])
 
   useEffect(() => {

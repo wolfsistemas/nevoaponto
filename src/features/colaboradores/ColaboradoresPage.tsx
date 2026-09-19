@@ -122,8 +122,8 @@ export function ColaboradoresPage() {
   async function gerarAcesso(e: FormEvent) {
     e.preventDefault()
     if (!acessoDe) return
-    if (acesso.senha.length < 6) {
-      toast.push('A senha deve ter ao menos 6 caracteres.', 'erro')
+    if (acesso.senha.length < 8) {
+      toast.push('A senha deve ter ao menos 8 caracteres.', 'erro')
       return
     }
     setCriandoAcesso(true)
@@ -447,7 +447,7 @@ export function ColaboradoresPage() {
                   required
                 />
               </Field>
-              <Field label="Senha (min. 6)">
+              <Field label="Senha (min. 8)">
                 <Input
                   value={acesso.senha}
                   onChange={(e) => setAcesso({ ...acesso, senha: e.target.value })}

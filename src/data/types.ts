@@ -40,6 +40,43 @@ export interface Auditoria {
   created_at: string
 }
 
+export type StatusAssinatura =
+  | 'pendente'
+  | 'autorizada'
+  | 'pausada'
+  | 'cancelada'
+  | 'expirada'
+
+export interface Assinatura {
+  id: string
+  empresa_id: string
+  plano_id: string
+  status: StatusAssinatura
+  valor: number
+  mp_preapproval_id?: string | null
+  init_point?: string | null
+  periodo_inicio?: string | null
+  periodo_fim?: string | null
+  proxima_cobranca?: string | null
+  cancelada_em?: string | null
+  created_at?: string
+}
+
+export interface Pagamento {
+  id: string
+  empresa_id: string
+  assinatura_id?: string | null
+  mp_payment_id?: string | null
+  mp_preapproval_id?: string | null
+  plano_id?: string | null
+  status: string
+  valor: number
+  moeda?: string | null
+  metodo?: string | null
+  pago_em?: string | null
+  created_at?: string
+}
+
 export interface Obra {
   id: string
   nome: string

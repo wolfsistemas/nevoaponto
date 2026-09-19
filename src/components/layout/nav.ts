@@ -2,6 +2,7 @@ import {
   BadgeDollarSign,
   CalendarClock,
   ClipboardCheck,
+  CreditCard,
   LayoutDashboard,
   Search,
   ShieldCheck,
@@ -79,6 +80,12 @@ export const NAV_ITEMS: NavItem[] = [
     label: 'Relatorios',
     icon: Wallet,
     roles: ['admin', 'encarregado'],
+  },
+  {
+    to: ROUTES.assinatura,
+    label: 'Assinatura',
+    icon: CreditCard,
+    roles: ['admin'],
   },
 ]
 

@@ -29,6 +29,7 @@ export const ROUTES = {
   folha: '/folha',
   pagamentos: '/pagamentos',
   relatorios: '/relatorios',
+  assinatura: '/assinatura',
   superadmin: '/super-admin',
 } as const
 

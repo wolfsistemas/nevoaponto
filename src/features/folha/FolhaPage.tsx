@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog } from '@/components/ui/dialog'
 import { Table, TableWrap, Td, Th } from '@/components/ui/table'
 import { useToast } from '@/components/ui/toast'
-import { formatMoney, formatNumber, competenciaLabel } from '@/lib/format'
+import { formatMoney, competenciaLabel } from '@/lib/format'
 import { BRAND } from '@/lib/brand'
 
 function competenciasDisponiveis(): string[] {
@@ -232,12 +232,10 @@ export function FolhaPage() {
             <p className="text-xs text-muted-foreground">
               Base INSS {formatMoney(detalhe.baseINSS)} - INSS {formatMoney(detalhe.valorINSS)} - Base IRRF{' '}
               {formatMoney(detalhe.baseIRRF)} - IRRF {formatMoney(detalhe.valorIRRF)} - FGTS{' '}
-              {formatMoney(detalhe.valorFGTS)}. Horas apuradas:{' '}
-              {formatNumber(
-                detalhe.proventos.find((p) => p.descricao.includes('Dias'))?.valor ?? 0,
-                0,
-              )}{' '}
-              (referencia).
+              {formatMoney(detalhe.valorFGTS)}.
+              {detalhe.proventos[0]?.referencia
+                ? ` Referencia: ${detalhe.proventos[0].referencia}.`
+                : ''}
             </p>
           </div>
         )}
