@@ -9,12 +9,12 @@ import {
   ChevronDown,
   ClipboardCheck,
   Clock,
-  HardHat,
   MapPin,
   Menu,
   ShieldCheck,
   Smartphone,
   Sparkles,
+  Users,
   Wallet,
   X,
   type LucideIcon,
@@ -35,11 +35,11 @@ const RECURSOS: { icon: LucideIcon; titulo: string; texto: string }[] = [
   {
     icon: MapPin,
     titulo: 'Ponto com geolocalização',
-    texto: 'O colaborador registra a entrada e a saída pelo celular, validado pelo raio da obra.',
+    texto: 'O colaborador registra entrada e saída pelo celular, com validação de local opcional e regra de tolerância.',
   },
   {
     icon: ClipboardCheck,
-    titulo: 'Aprovação do encarregado',
+    titulo: 'Aprovação do gestor',
     texto: 'Fluxo pendente, validado e recusado. Nada entra na folha sem conferência.',
   },
   {
@@ -48,9 +48,9 @@ const RECURSOS: { icon: LucideIcon; titulo: string; texto: string }[] = [
     texto: 'INSS, IRRF, FGTS, provisões de 13º e férias calculados com tabelas por competência.',
   },
   {
-    icon: HardHat,
-    titulo: 'Produção e empreita',
-    texto: 'Medição por metro para terceirizados e empreiteiros, com valor fechado por serviço.',
+    icon: Users,
+    titulo: 'Diárias, produção e terceiros',
+    texto: 'Contratos por diária, produção por serviço e empreita, com valor fechado por período.',
   },
   {
     icon: Wallet,
@@ -60,14 +60,14 @@ const RECURSOS: { icon: LucideIcon; titulo: string; texto: string }[] = [
   {
     icon: BarChart3,
     titulo: 'Relatórios e indicadores',
-    texto: 'Custo por obra, presença, produtividade e histórico completo em poucos cliques.',
+    texto: 'Custo por equipe, presença, produtividade e histórico completo em poucos cliques.',
   },
 ]
 
 const PASSOS = [
-  { titulo: 'Cadastre a obra e a equipe', texto: 'Importe colaboradores, defina diárias, salários e o raio de tolerância.' },
-  { titulo: 'A equipe bate o ponto', texto: 'No celular, com GPS e regra de tolerância por período. Funciona offline.' },
-  { titulo: 'O encarregado aprova', texto: 'Confere as marcações do dia e libera para o fechamento da folha.' },
+  { titulo: 'Cadastre sua equipe', texto: 'Importe colaboradores, defina diárias, salários e os locais de trabalho.' },
+  { titulo: 'A equipe registra o ponto', texto: 'No celular, com regra de tolerância por período. Funciona offline.' },
+  { titulo: 'O gestor aprova', texto: 'Confere as marcações do dia e libera para o fechamento da folha.' },
   { titulo: 'Folha e pagamento prontos', texto: 'Gere a competência com encargos e envie os valores para pagamento.' },
 ]
 
@@ -88,13 +88,13 @@ const PLANOS: Plano[] = [
     preco: '149',
     periodo: '/mês',
     anual: 'ou R$ 1.490/ano (2 meses grátis)',
-    resumo: 'Para quem está começando a organizar o ponto.',
+    resumo: 'Para pequenas equipes começando a organizar o ponto.',
     cta: 'Começar agora',
     itens: [
       'Até 10 colaboradores',
-      '1 obra ativa',
-      'Ponto com geolocalização',
-      'Aprovação do encarregado',
+      '1 local de trabalho',
+      'Ponto com geolocalização opcional',
+      'Aprovação do gestor',
       'Relatórios essenciais',
       'Suporte por e-mail',
     ],
@@ -104,14 +104,14 @@ const PLANOS: Plano[] = [
     preco: '349',
     periodo: '/mês',
     anual: 'ou R$ 3.490/ano (2 meses grátis)',
-    resumo: 'Para construtoras com várias frentes de trabalho.',
+    resumo: 'Para empresas em crescimento, com vários setores ou filiais.',
     destaque: true,
     cta: 'Testar 14 dias grátis',
     itens: [
       'Até 50 colaboradores',
-      'Obras ilimitadas',
+      'Locais de trabalho ilimitados',
       'Folha completa com encargos CLT',
-      'Produção e empreita (metros)',
+      'Diárias, produção e terceiros',
       'Pagamentos e recibos',
       'Relatórios avançados e exportação',
       'Suporte prioritário no WhatsApp',
@@ -128,7 +128,7 @@ const PLANOS: Plano[] = [
       'Colaboradores ilimitados',
       'Multiempresa e multivínculo',
       'Tabelas legais personalizadas',
-      'Perfis e permissões por obra',
+      'Perfis e permissões por local',
       'Exportação para contabilidade',
       'API e integrações',
       'Gerente de conta dedicado',
@@ -139,19 +139,19 @@ const PLANOS: Plano[] = [
 const FAQ = [
   {
     q: 'O PontoFlow substitui o relógio de ponto?',
-    a: 'Sim. O registro é feito pelo celular do colaborador, com validação de geolocalização pelo raio da obra e aprovação do encarregado. Também é possível lançar ajustes manuais com justificativa.',
+    a: 'Sim. O registro é feito pelo celular do colaborador, com regra de tolerância por período, validação de local opcional e aprovação do gestor. Também é possível lançar ajustes manuais com justificativa.',
   },
   {
     q: 'A folha calcula os encargos corretamente?',
     a: 'O motor de folha aplica INSS, IRRF, FGTS e provisões de 13º e férias, com tabelas legais versionadas por competência. Os valores ficam transparentes e podem ser conferidos linha a linha.',
   },
   {
-    q: 'Dá para controlar terceirizados e empreita?',
-    a: 'Sim. Além do ponto por diária, o sistema calcula produção por metro e fechamentos de empreita com valor por serviço.',
+    q: 'Serve para empresas fora da construção civil?',
+    a: 'Sim. O PontoFlow atende qualquer empresa com equipe horista, diarista ou CLT — comércio, indústria, serviços, saúde, segurança e também construção civil.',
   },
   {
     q: 'Meus dados ficam seguros?',
-    a: 'Os dados ficam em banco na nuvem com isolamento por perfil: cada encarregado acessa apenas a própria obra e o funcionário vê somente os próprios registros.',
+    a: 'Os dados ficam em banco na nuvem com isolamento por perfil: cada gestor acessa apenas a própria equipe e o funcionário vê somente os próprios registros.',
   },
   {
     q: 'Preciso instalar algo?',
@@ -260,15 +260,15 @@ export function LandingPage() {
             <div>
               <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs font-bold text-muted-foreground">
                 <Sparkles className="h-3.5 w-3.5 text-primary" />
-                Ponto, folha e pagamento para a construção civil
+                Ponto, folha e pagamento para sua empresa
               </span>
 
               <h1 className="mt-5 text-4xl font-extrabold leading-[1.1] tracking-tight sm:text-5xl">
-                Controle a obra inteira sem planilha e sem papel.
+                Controle o ponto e a folha sem planilha e sem papel.
               </h1>
 
               <p className="mt-5 max-w-xl text-lg text-muted-foreground">
-                O {BRAND.name} registra o ponto com GPS, aprova com o encarregado e fecha a folha
+                O {BRAND.name} registra o ponto pelo celular, aprova com o gestor e fecha a folha
                 com todos os encargos CLT. Tudo em um painel só, do celular ao escritório.
               </p>
 
@@ -293,9 +293,9 @@ export function LandingPage() {
               <div className="mt-10 grid max-w-lg grid-cols-2 gap-4 sm:grid-cols-4">
                 {[
                   { valor: '480', label: 'min = 1 diária' },
-                  { valor: '80 m', label: 'raio da obra' },
                   { valor: 'CLT', label: 'encargos completos' },
                   { valor: '100%', label: 'mobile' },
+                  { valor: 'LGPD', label: 'dados isolados' },
                 ].map((s) => (
                   <div key={s.label}>
                     <p className="text-xl font-extrabold tracking-tight">{s.valor}</p>
@@ -313,7 +313,7 @@ export function LandingPage() {
                     <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
                       Resumo do dia
                     </p>
-                    <p className="text-lg font-extrabold">Obra Residencial Aurora</p>
+                    <p className="text-lg font-extrabold">Grupo Aurora - Unidade Centro</p>
                   </div>
                   <span className="rounded-full bg-success/15 px-2.5 py-1 text-xs font-bold text-success">
                     No prazo
@@ -337,9 +337,9 @@ export function LandingPage() {
 
                 <div className="mt-5 space-y-3">
                   {[
-                    { nome: 'Marcos A.', cargo: 'Servente', pct: 100 },
-                    { nome: 'Juliana R.', cargo: 'Pedreira', pct: 88 },
-                    { nome: 'Equipe Elétrica', cargo: 'Terceirizado', pct: 64 },
+                    { nome: 'Marcos A.', cargo: 'Operação', pct: 100 },
+                    { nome: 'Juliana R.', cargo: 'Comercial', pct: 88 },
+                    { nome: 'Equipe Terceirizada', cargo: 'Terceirizado', pct: 64 },
                   ].map((p) => (
                     <div key={p.nome}>
                       <div className="flex items-center justify-between text-sm">
@@ -358,7 +358,7 @@ export function LandingPage() {
 
                 <div className="mt-5 flex items-center gap-2 rounded-2xl border border-border bg-muted/50 p-3 text-xs text-muted-foreground">
                   <ShieldCheck className="h-4 w-4 text-success" />
-                  Marcações validadas por GPS e aprovadas pelo encarregado.
+                  Marcações validadas por local e aprovadas pelo gestor.
                 </div>
               </div>
 
@@ -379,11 +379,10 @@ export function LandingPage() {
             <div className="max-w-2xl">
               <p className="text-sm font-bold uppercase tracking-wide text-primary">Recursos</p>
               <h2 className="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">
-                Tudo que a obra precisa, em um só sistema.
+                Tudo que sua empresa precisa, em um só sistema.
               </h2>
               <p className="mt-4 text-muted-foreground">
-                Do registro no canteiro ao pagamento no escritório, sem retrabalho e sem
-                planilhas paralelas.
+                Do registro no dia a dia ao pagamento, sem retrabalho e sem planilhas paralelas.
               </p>
             </div>
 
@@ -428,7 +427,7 @@ export function LandingPage() {
 
             <div className="mt-10 flex flex-wrap items-center gap-x-8 gap-y-4 rounded-2xl border border-border bg-muted/40 p-5">
               <div className="flex items-center gap-2 text-sm font-semibold">
-                <Building2 className="h-5 w-5 text-primary" /> Multiobras
+                <Building2 className="h-5 w-5 text-primary" /> Multilocais
               </div>
               <div className="flex items-center gap-2 text-sm font-semibold">
                 <Smartphone className="h-5 w-5 text-primary" /> PWA instalável
@@ -449,7 +448,7 @@ export function LandingPage() {
             <div className="mx-auto max-w-2xl text-center">
               <p className="text-sm font-bold uppercase tracking-wide text-primary">Planos</p>
               <h2 className="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">
-                Um plano para cada tamanho de obra.
+                Um plano para cada tamanho de empresa.
               </h2>
               <p className="mt-4 text-muted-foreground">
                 Assinatura mensal, sem taxa de implantação. Os valores abaixo são sugestões de
@@ -573,7 +572,7 @@ export function LandingPage() {
                 Comece hoje a fechar a folha sem dor de cabeça.
               </h2>
               <p className="mx-auto mt-4 max-w-xl text-white/70">
-                14 dias grátis, sem compromisso. Configure a primeira obra em minutos.
+                14 dias grátis, sem compromisso. Configure sua equipe em minutos.
               </p>
               <div className="mt-8 flex flex-wrap justify-center gap-3">
                 <Link to={ROUTES.signup}>
