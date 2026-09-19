@@ -174,3 +174,9 @@
 *.lz
 *.lzma
 *.iso
+
+# Clones de referencia (nao versionar)
+repos/
+
+# Build
+/dist

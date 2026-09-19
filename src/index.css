@@ -1,0 +1,100 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 20% 98%;
+    --foreground: 240 12% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 12% 12%;
+    --muted: 220 16% 95%;
+    --muted-foreground: 240 6% 42%;
+    --border: 220 16% 90%;
+    --input: 220 16% 90%;
+    --primary: 258 88% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 16% 95%;
+    --secondary-foreground: 240 12% 16%;
+    --accent: 187 92% 43%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 78% 58%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 152 62% 40%;
+    --success-foreground: 0 0% 100%;
+    --warning: 35 92% 50%;
+    --warning-foreground: 30 40% 12%;
+    --ring: 258 88% 60%;
+    --radius: 0.85rem;
+  }
+
+  .dark {
+    --background: 240 14% 7%;
+    --foreground: 220 20% 96%;
+    --card: 240 12% 11%;
+    --card-foreground: 220 20% 96%;
+    --muted: 240 10% 16%;
+    --muted-foreground: 230 10% 65%;
+    --border: 240 10% 20%;
+    --input: 240 10% 20%;
+    --primary: 258 90% 68%;
+    --primary-foreground: 240 14% 8%;
+    --secondary: 240 10% 16%;
+    --secondary-foreground: 220 20% 96%;
+    --accent: 187 88% 50%;
+    --accent-foreground: 240 14% 8%;
+    --destructive: 0 70% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 152 58% 48%;
+    --success-foreground: 240 14% 8%;
+    --warning: 35 90% 58%;
+    --warning-foreground: 30 40% 10%;
+    --ring: 258 90% 68%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-border;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@layer utilities {
+  .glass {
+    @apply border border-white/40 bg-white/70 backdrop-blur-xl dark:border-white/10 dark:bg-white/5;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}
