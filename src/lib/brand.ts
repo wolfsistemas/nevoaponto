@@ -5,15 +5,18 @@
 export const BRAND = {
   name: 'PontoFlow',
   shortName: 'PontoFlow',
-  tagline: 'Ponto, folha e pagamento em um so lugar.',
+  tagline: 'Ponto, folha e pagamento em um só lugar.',
   company: 'PontoFlow Tecnologia',
   domain: 'pontoflow.app',
   supportEmail: 'suporte@pontoflow.app',
+  vendor: 'Wolf Saas Sistemas',
+  vendorUrl: 'https://wolfsaas.com.br',
 } as const
 
 export const ROUTES = {
+  home: '/',
   login: '/login',
-  dashboard: '/',
+  dashboard: '/app',
   colaboradores: '/colaboradores',
   obras: '/obras',
   ponto: '/ponto',

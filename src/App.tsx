@@ -5,6 +5,7 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { ToastProvider } from '@/components/ui/toast'
 import { ThemeProvider } from '@/lib/theme'
 import { LoginPage } from '@/features/auth/LoginPage'
+import { LandingPage } from '@/features/landing/LandingPage'
 import { DashboardPage } from '@/features/dashboard/DashboardPage'
 import { ColaboradoresPage } from '@/features/colaboradores/ColaboradoresPage'
 import { ObrasPage } from '@/features/obras/ObrasPage'
@@ -22,6 +23,7 @@ export default function App() {
         <AuthProvider>
           <HashRouter>
             <Routes>
+              <Route path={ROUTES.home} element={<LandingPage />} />
               <Route path={ROUTES.login} element={<LoginPage />} />
               <Route
                 element={
@@ -39,7 +41,7 @@ export default function App() {
                 <Route path={ROUTES.pagamentos} element={<PagamentosPage />} />
                 <Route path={ROUTES.relatorios} element={<RelatoriosPage />} />
               </Route>
-              <Route path="*" element={<Navigate to={ROUTES.dashboard} replace />} />
+              <Route path="*" element={<Navigate to={ROUTES.home} replace />} />
             </Routes>
           </HashRouter>
         </AuthProvider>
