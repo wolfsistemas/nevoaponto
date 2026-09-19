@@ -66,6 +66,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  // Mantem a sessao sincronizada (login, logout, refresh e link de recuperacao).
+  useEffect(() => {
+    if (!isSupabaseConfigured) return
+    const supabase = getSupabase()
+    const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_OUT') {
+        setUser(null)
+        return
+      }
+      if (
+        (event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY' || event === 'TOKEN_REFRESHED') &&
+        session?.user
+      ) {
+        try {
+          const profiles = await api.listProfiles()
+          setUser(profiles.find((p) => p.id === session.user.id) ?? null)
+        } catch {
+          // mantem o estado atual
+        }
+      }
+    })
+    return () => data.subscription.unsubscribe()
+  }, [])
+
   const signIn = useCallback<AuthState['signIn']>(async (login, senha) => {
     const usuario = login.trim().toLowerCase()
     if (!usuario) return { ok: false, erro: 'Informe o usuario.' }
