@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react'
-import { Pencil, Plus, Search, Power, Users } from 'lucide-react'
+import { KeyRound, Pencil, Plus, Search, Power, Users } from 'lucide-react'
 import { useAppData } from '@/data/useAppData'
 import { api } from '@/data/api'
 import type { Colaborador } from '@/data/types'
@@ -22,6 +22,26 @@ const CONTRATO_LABEL: Record<TipoContrato, string> = {
 
 type FormState = Partial<Colaborador> & { nome: string }
 
+type RoleAcesso = 'admin' | 'encarregado' | 'funcionario'
+
+const ROLE_LABEL: Record<RoleAcesso, string> = {
+  funcionario: 'Funcionario (bate o ponto)',
+  encarregado: 'Encarregado (aprova o ponto)',
+  admin: 'Administrador (acesso total)',
+}
+
+function sugerirLogin(c: Colaborador): string {
+  const primeiro =
+    c.nome
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .split(/\s+/)[0] ?? 'colaborador'
+  const limpo = primeiro.replace(/[^a-z0-9]/g, '') || 'colaborador'
+  return c.matricula ? `${limpo}${c.matricula}` : limpo
+}
+
 const VAZIO: FormState = {
   nome: '',
   tipo_contrato: 'CLT',
@@ -36,6 +56,13 @@ export function ColaboradoresPage() {
   const [filtroTipo, setFiltroTipo] = useState('')
   const [form, setForm] = useState<FormState | null>(null)
   const [salvando, setSalvando] = useState(false)
+  const [acessoDe, setAcessoDe] = useState<Colaborador | null>(null)
+  const [acesso, setAcesso] = useState<{ login: string; senha: string; role: RoleAcesso }>({
+    login: '',
+    senha: '',
+    role: 'funcionario',
+  })
+  const [criandoAcesso, setCriandoAcesso] = useState(false)
 
   const lista = useMemo(() => {
     const termo = busca.toLowerCase()
@@ -85,6 +112,37 @@ export function ColaboradoresPage() {
   async function alternarAtivo(c: Colaborador) {
     await api.toggleColaborador(c.id)
     toast.push(c.ativo ? 'Colaborador inativado.' : 'Colaborador reativado.', 'info')
+  }
+
+  function abrirAcesso(c: Colaborador) {
+    setAcesso({ login: sugerirLogin(c), senha: '', role: 'funcionario' })
+    setAcessoDe(c)
+  }
+
+  async function gerarAcesso(e: FormEvent) {
+    e.preventDefault()
+    if (!acessoDe) return
+    if (acesso.senha.length < 6) {
+      toast.push('A senha deve ter ao menos 6 caracteres.', 'erro')
+      return
+    }
+    setCriandoAcesso(true)
+    try {
+      const res = await api.criarAcesso({
+        nome: acessoDe.nome,
+        login: acesso.login,
+        senha: acesso.senha,
+        role: acesso.role,
+        colaborador_id: acessoDe.id,
+        obra_id: acessoDe.obra_id ?? null,
+      })
+      toast.push(`Acesso criado: ${res.email}. Entregue a senha ao colaborador.`, 'sucesso')
+      setAcessoDe(null)
+    } catch (err) {
+      toast.push(err instanceof Error ? err.message : 'Erro ao criar acesso.', 'erro')
+    } finally {
+      setCriandoAcesso(false)
+    }
   }
 
   const exigeDiaria = form?.tipo_contrato === 'DIARISTA'
@@ -183,6 +241,14 @@ export function ColaboradoresPage() {
                   onClick={() => setForm({ ...c })}
                 >
                   <Pencil className="h-3.5 w-3.5" /> Editar
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => abrirAcesso(c)}
+                  title="Criar acesso ao app"
+                >
+                  <KeyRound className="h-3.5 w-3.5" />
                 </Button>
                 <Button
                   variant={c.ativo ? 'ghost' : 'outline'}
@@ -353,6 +419,73 @@ export function ColaboradoresPage() {
               </Button>
               <Button type="submit" disabled={salvando}>
                 {salvando ? 'Salvando...' : 'Salvar'}
+              </Button>
+            </div>
+          </form>
+        )}
+      </Dialog>
+
+      <Dialog
+        open={Boolean(acessoDe)}
+        onClose={() => setAcessoDe(null)}
+        title="Criar acesso ao app"
+        description={
+          acessoDe
+            ? `${acessoDe.nome} vai entrar com o usuario e a senha abaixo.`
+            : 'Gere o login do colaborador.'
+        }
+      >
+        {acessoDe && (
+          <form onSubmit={gerarAcesso} className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Usuario (login)">
+                <Input
+                  value={acesso.login}
+                  onChange={(e) => setAcesso({ ...acesso, login: e.target.value })}
+                  placeholder="nome133"
+                  autoComplete="off"
+                  required
+                />
+              </Field>
+              <Field label="Senha (min. 6)">
+                <Input
+                  value={acesso.senha}
+                  onChange={(e) => setAcesso({ ...acesso, senha: e.target.value })}
+                  placeholder="Senha inicial"
+                  autoComplete="new-password"
+                  required
+                />
+              </Field>
+            </div>
+
+            <Field label="Perfil de acesso">
+              <Select
+                value={acesso.role}
+                onChange={(e) => setAcesso({ ...acesso, role: e.target.value as RoleAcesso })}
+              >
+                {(Object.keys(ROLE_LABEL) as RoleAcesso[]).map((r) => (
+                  <option key={r} value={r}>
+                    {ROLE_LABEL[r]}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+
+            <p className="rounded-xl bg-muted/60 p-3 text-xs text-muted-foreground">
+              O login sera{' '}
+              <strong>
+                {acesso.login ? `${acesso.login}@pontoflow.app` : 'usuario@pontoflow.app'}
+              </strong>
+              . Compartilhe o usuario e a senha com o colaborador e oriente a troca no primeiro
+              acesso.
+            </p>
+
+            <div className="flex justify-end gap-2 pt-3">
+              <Button type="button" variant="outline" onClick={() => setAcessoDe(null)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={criandoAcesso}>
+                {criandoAcesso ? 'Criando...' : 'Criar acesso'}
               </Button>
             </div>
           </form>

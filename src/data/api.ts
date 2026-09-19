@@ -330,6 +330,42 @@ const apiBase = {
     return isSupabaseConfigured ? sbList<Profile>('profiles') : local.listProfiles()
   },
 
+  /**
+   * Cria o acesso de um colaborador (Auth + perfil) via Edge Function.
+   * Disponivel apenas no modo Supabase.
+   */
+  async criarAcesso(input: {
+    nome: string
+    login: string
+    senha: string
+    role?: 'admin' | 'encarregado' | 'funcionario'
+    colaborador_id?: string | null
+    obra_id?: string | null
+  }): Promise<{ id: string; email: string; login: string; role: string }> {
+    if (!isSupabaseConfigured) {
+      throw new Error('Criacao de acesso disponivel apenas com o Supabase configurado.')
+    }
+    const { data, error } = await getSupabase().functions.invoke('admin-criar-acesso', {
+      body: input,
+    })
+    if (error) {
+      let mensagem = error.message
+      const contexto = (error as { context?: Response }).context
+      if (contexto && typeof contexto.json === 'function') {
+        try {
+          const corpo = (await contexto.json()) as { error?: string }
+          if (corpo?.error) mensagem = corpo.error
+        } catch {
+          // mantem a mensagem original
+        }
+      }
+      throw new Error(mensagem)
+    }
+    const payload = data as { error?: string; id?: string; email?: string; login?: string; role?: string }
+    if (payload?.error) throw new Error(payload.error)
+    return payload as { id: string; email: string; login: string; role: string }
+  },
+
   /** Apura a competencia para todos os colaboradores ativos. */
   async apurarCompetencia(competencia: string): Promise<ApuracaoCompetencia> {
     const [colaboradores, pontos, producao] = await Promise.all([
