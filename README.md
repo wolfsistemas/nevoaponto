@@ -1,5 +1,7 @@
 # PontoFlow
 
+**Site publicado:** https://wolfsaas.com.br/nevoaponto/
+
 Sistema moderno de **ponto, folha de pagamento e pagamentos** para construção civil.
 Frontend SPA (React + Vite + TypeScript + Tailwind) publicado como site estático
 (GitHub Pages) e persistência no **Supabase** (acesso direto via `supabase-js`,
