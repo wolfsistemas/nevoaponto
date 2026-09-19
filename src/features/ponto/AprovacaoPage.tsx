@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react'
-import { Check, ClipboardCheck, MapPin, Plus, RefreshCw, X } from 'lucide-react'
+import { Camera, Check, ClipboardCheck, MapPin, Plus, RefreshCw, X } from 'lucide-react'
 import { useAppData } from '@/data/useAppData'
 import { api } from '@/data/api'
 import type { PontoRegistro, TipoPonto } from '@/core/types'
@@ -27,6 +27,7 @@ export function AprovacaoPage() {
   const [manual, setManual] = useState<ManualState | null>(null)
   const [horas, setHoras] = useState<Record<string, string>>({})
   const [processando, setProcessando] = useState(false)
+  const [fotoAberta, setFotoAberta] = useState<string | null>(null)
 
   const pendentes = useMemo(
     () =>
@@ -186,6 +187,18 @@ export function AprovacaoPage() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
+                  {p.foto && (
+                    <button
+                      type="button"
+                      onClick={() => setFotoAberta(p.foto ?? null)}
+                      className="h-10 w-10 overflow-hidden rounded-lg border border-border"
+                      title="Ver comprovante"
+                    >
+                      <img src={p.foto} alt="Comprovante do ponto" className="h-full w-full object-cover" />
+                    </button>
+                  )}
+                  {p.face_detectada === true && <Badge variant="success">Face ok</Badge>}
+                  {p.face_detectada === false && <Badge variant="destructive">Sem face</Badge>}
                   <Badge variant={p.tipo === 'ENTRADA' ? 'success' : 'default'}>
                     {p.tipo === 'ENTRADA' ? 'Entrada' : p.tipo === 'SAIDA' ? 'Saida' : 'Ajuste'}
                   </Badge>
@@ -283,6 +296,24 @@ export function AprovacaoPage() {
             </div>
           </form>
         )}
+      </Dialog>
+
+      <Dialog
+        open={!!fotoAberta}
+        onClose={() => setFotoAberta(null)}
+        title="Comprovante do registro"
+        description="Foto capturada no momento da batida."
+      >
+        {fotoAberta && (
+          <img
+            src={fotoAberta}
+            alt="Comprovante do ponto"
+            className="mx-auto max-h-[70vh] w-auto rounded-xl border border-border"
+          />
+        )}
+        <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
+          <Camera className="h-3.5 w-3.5" /> Imagem armazenada junto ao registro de ponto.
+        </p>
       </Dialog>
     </div>
   )

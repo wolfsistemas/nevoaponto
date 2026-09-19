@@ -2,8 +2,9 @@ import { Navigate, useLocation } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { useAuth } from './AuthContext'
 import { ROUTES } from '@/lib/brand'
+import type { UserRole } from '@/data/types'
 
-export function ProtectedRoute({ children }: { children: ReactNode }) {
+export function ProtectedRoute({ children, roles }: { children: ReactNode; roles?: UserRole[] }) {
   const { user, loading } = useAuth()
   const location = useLocation()
 
@@ -17,6 +18,10 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
 
   if (!user) {
     return <Navigate to={ROUTES.login} state={{ from: location }} replace />
+  }
+
+  if (roles && !roles.includes(user.role)) {
+    return <Navigate to={ROUTES.dashboard} replace />
   }
 
   return <>{children}</>

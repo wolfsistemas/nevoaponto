@@ -16,6 +16,19 @@ interface AuthState {
   loading: boolean
   signIn: (login: string, senha: string) => Promise<{ ok: boolean; erro?: string }>
   signOut: () => Promise<void>
+  signUp: (input: {
+    empresa: string
+    nome: string
+    email: string
+    senha: string
+    telefone?: string
+    cnpj?: string
+    aceitou_termos: boolean
+    website?: string
+  }) => Promise<{ ok: boolean; erro?: string }>
+  recuperarSenha: (email: string) => Promise<{ ok: boolean; erro?: string }>
+  redefinirSenha: (nova: string) => Promise<{ ok: boolean; erro?: string }>
+  alterarSenha: (atual: string, nova: string) => Promise<{ ok: boolean; erro?: string }>
   pode: (...roles: UserRole[]) => boolean
 }
 
@@ -99,9 +112,82 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [user],
   )
 
+  const emailDe = useCallback((login: string) => {
+    const valor = login.trim().toLowerCase()
+    return valor.includes('@') ? valor : `${valor}@pontoflow.app`
+  }, [])
+
+  const signUp = useCallback<AuthState['signUp']>(
+    async (input) => {
+      if (!isSupabaseConfigured) {
+        return { ok: false, erro: 'Cadastro disponivel apenas com o Supabase configurado.' }
+      }
+      try {
+        await api.criarConta(input)
+        const res = await signIn(input.email, input.senha)
+        return res.ok ? { ok: true } : { ok: true }
+      } catch (erro) {
+        return {
+          ok: false,
+          erro: erro instanceof Error ? erro.message : 'Nao foi possivel criar a conta.',
+        }
+      }
+    },
+    [signIn],
+  )
+
+  const recuperarSenha = useCallback<AuthState['recuperarSenha']>(async (email) => {
+    if (!isSupabaseConfigured) {
+      return { ok: false, erro: 'Disponivel apenas com o Supabase configurado.' }
+    }
+    const destino = `${window.location.origin}${import.meta.env.BASE_URL}#/redefinir-senha`
+    const { error } = await getSupabase().auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+      redirectTo: destino,
+    })
+    if (error) return { ok: false, erro: error.message }
+    return { ok: true }
+  }, [])
+
+  const redefinirSenha = useCallback<AuthState['redefinirSenha']>(async (nova) => {
+    if (!isSupabaseConfigured) {
+      return { ok: false, erro: 'Disponivel apenas com o Supabase configurado.' }
+    }
+    if (nova.length < 8) return { ok: false, erro: 'A senha deve ter ao menos 8 caracteres.' }
+    const { error } = await getSupabase().auth.updateUser({ password: nova })
+    if (error) return { ok: false, erro: error.message }
+    return { ok: true }
+  }, [])
+
+  const alterarSenha = useCallback<AuthState['alterarSenha']>(
+    async (atual, nova) => {
+      if (!user) return { ok: false, erro: 'Sessao expirada. Entre novamente.' }
+      if (!isSupabaseConfigured) {
+        return { ok: false, erro: 'Disponivel apenas com o Supabase configurado.' }
+      }
+      if (nova.length < 8) return { ok: false, erro: 'A senha deve ter ao menos 8 caracteres.' }
+      const email = user.email ?? emailDe(user.login)
+      const reauth = await getSupabase().auth.signInWithPassword({ email, password: atual })
+      if (reauth.error) return { ok: false, erro: 'Senha atual incorreta.' }
+      const { error } = await getSupabase().auth.updateUser({ password: nova })
+      if (error) return { ok: false, erro: error.message }
+      return { ok: true }
+    },
+    [user, emailDe],
+  )
+
   const value = useMemo(
-    () => ({ user, loading, signIn, signOut, pode }),
-    [user, loading, signIn, signOut, pode],
+    () => ({
+      user,
+      loading,
+      signIn,
+      signOut,
+      signUp,
+      recuperarSenha,
+      redefinirSenha,
+      alterarSenha,
+      pode,
+    }),
+    [user, loading, signIn, signOut, signUp, recuperarSenha, redefinirSenha, alterarSenha, pode],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

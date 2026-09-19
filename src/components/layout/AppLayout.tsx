@@ -1,7 +1,8 @@
 import { useState, type ReactNode } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
-import { Clock, LogOut, Menu, Moon, Sun, X } from 'lucide-react'
+import { Clock, KeyRound, LogOut, Menu, Moon, Sun, X } from 'lucide-react'
 import { useAuth } from '@/features/auth/AuthContext'
+import { ChangePasswordDialog } from '@/features/auth/ChangePasswordDialog'
 import { useTheme } from '@/lib/theme'
 import { BRAND } from '@/lib/brand'
 import { api } from '@/data/api'
@@ -10,6 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { itensDoPerfil } from './nav'
 
 const ROLE_LABEL: Record<string, string> = {
+  superadmin: 'Super Admin',
   admin: 'Administrador',
   encarregado: 'Encarregado',
   funcionario: 'Funcionario',
@@ -63,6 +65,7 @@ export function AppLayout({ children }: { children?: ReactNode }) {
   const { user, signOut } = useAuth()
   const { tema, alternar } = useTheme()
   const [menuAberto, setMenuAberto] = useState(false)
+  const [senhaAberta, setSenhaAberta] = useState(false)
   const itens = user ? itensDoPerfil(user.role) : []
   const mobileItems = itens.filter((i) => i.mobile).slice(0, 4)
 
@@ -85,8 +88,14 @@ export function AppLayout({ children }: { children?: ReactNode }) {
           <p className="truncate text-sm font-bold">{user?.nome}</p>
           <p className="text-xs text-muted-foreground">{ROLE_LABEL[user?.role ?? '']}</p>
           <button
+            onClick={() => setSenhaAberta(true)}
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-muted px-3 py-2 text-xs font-bold text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <KeyRound className="h-4 w-4" /> Alterar senha
+          </button>
+          <button
             onClick={signOut}
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-muted px-3 py-2 text-xs font-bold text-muted-foreground transition-colors hover:text-destructive"
+            className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-muted px-3 py-2 text-xs font-bold text-muted-foreground transition-colors hover:text-destructive"
           >
             <LogOut className="h-4 w-4" /> Sair
           </button>
@@ -108,8 +117,17 @@ export function AppLayout({ children }: { children?: ReactNode }) {
               <NavLinks onNavigate={() => setMenuAberto(false)} />
             </div>
             <button
+              onClick={() => {
+                setMenuAberto(false)
+                setSenhaAberta(true)
+              }}
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-muted px-3 py-2 text-sm font-bold text-muted-foreground hover:text-foreground"
+            >
+              <KeyRound className="h-4 w-4" /> Alterar senha
+            </button>
+            <button
               onClick={signOut}
-              className="mt-6 flex w-full items-center justify-center gap-2 rounded-lg bg-muted px-3 py-2 text-sm font-bold text-muted-foreground hover:text-destructive"
+              className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-muted px-3 py-2 text-sm font-bold text-muted-foreground hover:text-destructive"
             >
               <LogOut className="h-4 w-4" /> Sair
             </button>
@@ -131,6 +149,13 @@ export function AppLayout({ children }: { children?: ReactNode }) {
               {api.modo === 'supabase' ? 'Supabase' : 'Demo local'}
             </Badge>
           </div>
+          <button
+            onClick={() => setSenhaAberta(true)}
+            className="rounded-lg border border-border p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            aria-label="Alterar senha"
+          >
+            <KeyRound className="h-5 w-5" />
+          </button>
           <button
             onClick={alternar}
             className="rounded-lg border border-border p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -173,6 +198,8 @@ export function AppLayout({ children }: { children?: ReactNode }) {
           ))}
         </nav>
       </div>
+
+      <ChangePasswordDialog open={senhaAberta} onClose={() => setSenhaAberta(false)} />
     </div>
   )
 }

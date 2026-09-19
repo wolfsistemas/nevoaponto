@@ -4,6 +4,7 @@ import {
   ClipboardCheck,
   LayoutDashboard,
   Search,
+  ShieldCheck,
   Users,
   Wallet,
   type LucideIcon,
@@ -20,6 +21,13 @@ export interface NavItem {
 }
 
 export const NAV_ITEMS: NavItem[] = [
+  {
+    to: ROUTES.superadmin,
+    label: 'Super Admin',
+    icon: ShieldCheck,
+    roles: ['superadmin'],
+    mobile: true,
+  },
   {
     to: ROUTES.dashboard,
     label: 'Visao geral',

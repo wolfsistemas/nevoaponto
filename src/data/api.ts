@@ -5,12 +5,15 @@ import { getSupabase, isSupabaseConfigured } from '@/lib/supabase'
 import { localStore, novoId } from './localStore'
 import { emitDataChange } from './events'
 import type {
+  Auditoria,
   Colaborador,
   Database,
+  Empresa,
   Fechamento,
   FolhaItem,
   LancamentoFinanceiro,
   Obra,
+  Plano,
   ProducaoTerc,
   Profile,
 } from './types'
@@ -366,6 +369,67 @@ const apiBase = {
     return payload as { id: string; email: string; login: string; role: string }
   },
 
+  /** Auto-cadastro publico (empresa + admin + obra inicial) via Edge Function. */
+  async criarConta(input: {
+    empresa: string
+    nome: string
+    email: string
+    senha: string
+    telefone?: string
+    cnpj?: string
+    aceitou_termos: boolean
+    website?: string
+  }): Promise<{ ok: boolean; email?: string; trial_ate?: string }> {
+    if (!isSupabaseConfigured) {
+      throw new Error('Cadastro disponivel apenas com o Supabase configurado.')
+    }
+    const { data, error } = await getSupabase().functions.invoke('criar-conta', { body: input })
+    if (error) {
+      let mensagem = error.message
+      const contexto = (error as { context?: Response }).context
+      if (contexto && typeof contexto.json === 'function') {
+        try {
+          const corpo = (await contexto.json()) as { error?: string }
+          if (corpo?.error) mensagem = corpo.error
+        } catch {
+          // mantem a mensagem original
+        }
+      }
+      throw new Error(mensagem)
+    }
+    const payload = data as { error?: string; ok?: boolean; email?: string; trial_ate?: string }
+    if (payload?.error) throw new Error(payload.error)
+    return payload as { ok: boolean; email?: string; trial_ate?: string }
+  },
+
+  async listEmpresas(): Promise<Empresa[]> {
+    return isSupabaseConfigured ? sbList<Empresa>('empresas') : []
+  },
+  async upsertEmpresa(input: Partial<Empresa> & { nome: string }): Promise<Empresa> {
+    if (!isSupabaseConfigured) throw new Error('Disponivel apenas no modo Supabase.')
+    return sbUpsert<Empresa>('empresas', input as Empresa)
+  },
+  async listPlanos(): Promise<Plano[]> {
+    return isSupabaseConfigured ? sbList<Plano>('planos') : []
+  },
+  async listAuditoria(limite = 200): Promise<Auditoria[]> {
+    if (!isSupabaseConfigured) return []
+    const { data, error } = await getSupabase()
+      .from('auditoria')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(limite)
+    if (error) throw error
+    return (data ?? []) as Auditoria[]
+  },
+  async listTodosPerfis(): Promise<Profile[]> {
+    return isSupabaseConfigured ? sbList<Profile>('profiles') : local.listProfiles()
+  },
+  async upsertPerfil(input: Partial<Profile> & { id: string }): Promise<Profile> {
+    if (!isSupabaseConfigured) throw new Error('Disponivel apenas no modo Supabase.')
+    return sbUpsert<Profile>('profiles', input as Profile)
+  },
+
   /** Apura a competencia para todos os colaboradores ativos. */
   async apurarCompetencia(competencia: string): Promise<ApuracaoCompetencia> {
     const [colaboradores, pontos, producao] = await Promise.all([
@@ -496,6 +560,8 @@ const METODOS_DE_ESCRITA = new Set<string>([
   'updateFechamento',
   'createLancamento',
   'markLancamentoPago',
+  'upsertEmpresa',
+  'upsertPerfil',
   'fecharFolha',
   'resetDemo',
 ])

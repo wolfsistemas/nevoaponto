@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CalendarClock, CheckCircle2, Clock, MapPin, Navigation, ShieldAlert, UserCircle } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
+import { CalendarClock, Camera, CheckCircle2, Clock, MapPin, Navigation, ScanFace, ShieldAlert, UserCircle } from 'lucide-react'
 import { useAppData } from '@/data/useAppData'
 import { useAuth } from '@/features/auth/AuthContext'
 import { api } from '@/data/api'
@@ -11,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Field, Select } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/toast'
+import { CameraCaptureDialog, type CapturaPonto } from './CameraCaptureDialog'
 import { formatDate, formatTime, todayISO } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -22,6 +24,7 @@ export function PontoPage() {
   const toast = useToast()
 
   const podeEscolher = user?.role === 'admin' || user?.role === 'encarregado'
+  const [searchParams] = useSearchParams()
   const [colaboradorId, setColaboradorId] = useState<string>('')
   const [obraId, setObraId] = useState<string>('')
   const [agora, setAgora] = useState(new Date())
@@ -29,6 +32,13 @@ export function PontoPage() {
     estado: 'aguardando',
   })
   const [registrando, setRegistrando] = useState(false)
+  const [capturaAberta, setCapturaAberta] = useState(false)
+
+  // Obra vinda do QR Code fixado na entrada da obra (?obra=<id>).
+  useEffect(() => {
+    const alvo = searchParams.get('obra')
+    if (alvo && obras.some((o) => o.id === alvo)) setObraId(alvo)
+  }, [searchParams, obras])
 
   // Colaborador padrao
   useEffect(() => {
@@ -106,13 +116,17 @@ export function PontoPage() {
 
   const podeRegistrar = Boolean(colaborador) && (dentro || (podeEscolher && gps.estado === 'ok'))
 
-  async function registrar() {
+  async function registrar(captura?: CapturaPonto) {
     if (!colaborador || !obra) {
       toast.push('Selecione o colaborador e a obra.', 'erro')
       return
     }
     if (!podeRegistrar) {
       toast.push('Fora do perimetro da obra.', 'erro')
+      return
+    }
+    if (!captura && (obra.exigir_foto || obra.exigir_face)) {
+      setCapturaAberta(true)
       return
     }
 
@@ -133,6 +147,9 @@ export function PontoPage() {
         origem: 'APP',
         lat_registro: gps.lat != null ? String(gps.lat) : null,
         lng_registro: gps.lng != null ? String(gps.lng) : null,
+        foto: captura?.foto ?? null,
+        face_detectada: captura?.face ?? null,
+        dispositivo: navigator.userAgent.slice(0, 150),
         pago_em_fechamento: false,
       })
       toast.push(
@@ -231,7 +248,7 @@ export function PontoPage() {
               size="lg"
               className="w-full"
               disabled={!podeRegistrar || registrando}
-              onClick={registrar}
+              onClick={() => registrar()}
               variant={proximoTipo === 'ENTRADA' ? 'success' : 'default'}
             >
               <Clock className="h-5 w-5" />
@@ -239,6 +256,16 @@ export function PontoPage() {
                 ? 'Registrando...'
                 : `Registrar ${proximoTipo === 'ENTRADA' ? 'entrada' : 'saida'}`}
             </Button>
+            {obra && (obra.exigir_foto || obra.exigir_face) && (
+              <p className="flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
+                {obra.exigir_face ? (
+                  <ScanFace className="h-3.5 w-3.5" />
+                ) : (
+                  <Camera className="h-3.5 w-3.5" />
+                )}
+                Esta obra exige {obra.exigir_face ? 'foto com verificacao facial' : 'foto'} no registro.
+              </p>
+            )}
             {!dentro && gps.estado === 'ok' && !podeEscolher && (
               <p className="text-center text-xs text-muted-foreground">
                 Aproxime-se da obra para liberar o registro.
@@ -285,6 +312,12 @@ export function PontoPage() {
                       <Badge variant={p.status === 'VALIDADO' ? 'success' : p.status === 'RECUSADO' ? 'destructive' : 'warning'}>
                         {p.status}
                       </Badge>
+                      {p.foto && (
+                        <Badge variant="secondary">
+                          <Camera className="h-3 w-3" />
+                          Foto
+                        </Badge>
+                      )}
                     </div>
                   </div>
                 </li>
@@ -299,6 +332,15 @@ export function PontoPage() {
           </div>
         </Card>
       </div>
+
+      <CameraCaptureDialog
+        open={capturaAberta}
+        onClose={() => setCapturaAberta(false)}
+        exigirFace={!!obra?.exigir_face}
+        onConfirmar={(captura) => {
+          void registrar(captura)
+        }}
+      />
     </div>
   )
 }

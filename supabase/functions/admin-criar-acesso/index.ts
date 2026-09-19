@@ -1,9 +1,7 @@
 // PontoFlow - Edge Function: admin-criar-acesso
-// Cria um usuario do Auth (e-mail/senha) e o perfil vinculado a um colaborador.
-// Somente administradores autenticados podem chamar.
-//
-// Variaveis de ambiente injetadas automaticamente pelo Supabase:
-//   SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
+// Cria um usuario do Auth (e-mail/senha) e o perfil vinculado a um colaborador,
+// sempre dentro da empresa (tenant) de quem chama.
+// Permitido para admin (da propria empresa) e superadmin (qualquer empresa).
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
@@ -40,10 +38,11 @@ Deno.serve(async (req) => {
 
     const { data: perfil, error: perfilError } = await admin
       .from('profiles')
-      .select('role')
+      .select('role, empresa_id')
       .eq('id', userData.user.id)
       .single()
-    if (perfilError || perfil?.role !== 'admin') {
+    if (perfilError || !perfil) return json({ error: 'Perfil nao encontrado.' }, 403)
+    if (perfil.role !== 'admin' && perfil.role !== 'superadmin') {
       return json({ error: 'Apenas administradores podem criar acessos.' }, 403)
     }
 
@@ -57,13 +56,20 @@ Deno.serve(async (req) => {
     const colaboradorId = body.colaborador_id ? String(body.colaborador_id) : null
     const obraId = body.obra_id ? String(body.obra_id) : null
 
+    const empresaId =
+      perfil.role === 'superadmin' && body.empresa_id
+        ? String(body.empresa_id)
+        : (perfil.empresa_id as string | null)
+    if (!empresaId) return json({ error: 'Empresa nao definida para o usuario.' }, 400)
+
     if (!nome) return json({ error: 'Informe o nome.' }, 400)
     if (!login || !/^[a-z0-9._-]+$/.test(login)) {
       return json({ error: 'Login invalido. Use letras, numeros, ponto, hifen ou underline.' }, 400)
     }
     if (senha.length < 6) return json({ error: 'A senha deve ter ao menos 6 caracteres.' }, 400)
 
-    const email = login.includes('@') ? login : `${login}@pontoflow.app`
+    const emailInformado = String(body.email ?? '').trim().toLowerCase()
+    const email = emailInformado || (login.includes('@') ? login : `${login}@pontoflow.app`)
 
     const { data: criado, error: createError } = await admin.auth.admin.createUser({
       email,
@@ -79,7 +85,9 @@ Deno.serve(async (req) => {
       id: criado.user.id,
       nome,
       login,
+      email,
       role,
+      empresa_id: empresaId,
       colaborador_id: colaboradorId,
       obra_id: obraId,
       ativo: true,

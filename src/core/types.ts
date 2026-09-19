@@ -16,6 +16,12 @@ export interface PontoRegistro {
   origem?: OrigemPonto
   lat_registro?: string | null
   lng_registro?: string | null
+  /** Imagem (data URL) capturada quando a obra exige confirmacao por camera */
+  foto?: string | null
+  /** Resultado da deteccao facial leve, quando a obra exige rosto */
+  face_detectada?: boolean | null
+  /** Identificador do dispositivo usado no registro */
+  dispositivo?: string | null
   pago_em_fechamento?: boolean
   observacao?: string | null
 }

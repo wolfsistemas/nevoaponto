@@ -210,7 +210,7 @@ export function LandingPage() {
             <Link to={ROUTES.login}>
               <Button variant="ghost">Entrar</Button>
             </Link>
-            <Link to={ROUTES.login}>
+            <Link to={ROUTES.signup}>
               <Button>
                 Teste grátis
                 <ArrowRight className="h-4 w-4" />
@@ -240,7 +240,7 @@ export function LandingPage() {
                 </button>
               ))}
             </div>
-            <Link to={ROUTES.login} className="mt-2 block">
+            <Link to={ROUTES.signup} className="mt-2 block">
               <Button className="w-full">
                 Teste grátis
                 <ArrowRight className="h-4 w-4" />
@@ -273,7 +273,7 @@ export function LandingPage() {
               </p>
 
               <div className="mt-8 flex flex-wrap items-center gap-3">
-                <Link to={ROUTES.login}>
+                <Link to={ROUTES.signup}>
                   <Button size="lg">
                     Começar agora
                     <ArrowRight className="h-4 w-4" />
@@ -486,7 +486,7 @@ export function LandingPage() {
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">{plano.anual}</p>
 
-                  <Link to={ROUTES.login} className="mt-6">
+                  <Link to={ROUTES.signup} className="mt-6">
                     <Button className="w-full" variant={plano.destaque ? 'default' : 'outline'}>
                       {plano.cta}
                     </Button>
@@ -576,7 +576,7 @@ export function LandingPage() {
                 14 dias grátis, sem compromisso. Configure a primeira obra em minutos.
               </p>
               <div className="mt-8 flex flex-wrap justify-center gap-3">
-                <Link to={ROUTES.login}>
+                <Link to={ROUTES.signup}>
                   <Button size="lg" className="bg-white text-[#0b0b12] hover:brightness-95">
                     Criar minha conta
                     <ArrowRight className="h-4 w-4" />
@@ -645,9 +645,17 @@ export function LandingPage() {
           </div>
 
           <div className="mt-10 flex flex-col items-center justify-between gap-3 border-t border-border/60 pt-6 text-xs text-muted-foreground sm:flex-row">
-            <p>
-              © {new Date().getFullYear()} {BRAND.company}. Todos os direitos reservados.
-            </p>
+            <div className="flex flex-wrap items-center gap-4">
+              <p>
+                © {new Date().getFullYear()} {BRAND.company}. Todos os direitos reservados.
+              </p>
+              <Link to={ROUTES.termos} className="hover:text-foreground">
+                Termos de Uso
+              </Link>
+              <Link to={ROUTES.privacidade} className="hover:text-foreground">
+                Politica de Privacidade
+              </Link>
+            </div>
             <p>
               Um produto{' '}
               <a

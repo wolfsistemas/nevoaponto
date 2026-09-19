@@ -1,6 +1,44 @@
 import type { PontoRegistro, TipoContrato } from '@/core/types'
 
-export type UserRole = 'admin' | 'encarregado' | 'funcionario'
+export type UserRole = 'superadmin' | 'admin' | 'encarregado' | 'funcionario'
+
+export interface Empresa {
+  id: string
+  nome: string
+  cnpj?: string | null
+  email_contato?: string | null
+  telefone?: string | null
+  plano: string
+  status: 'trial' | 'ativo' | 'suspenso' | 'cancelado'
+  trial_ate?: string | null
+  valor_mensal: number
+  termos_aceitos_em?: string | null
+  termos_versao?: string | null
+  created_at?: string
+}
+
+export interface Plano {
+  id: string
+  nome: string
+  valor_mensal: number
+  limite_colaboradores?: number | null
+  limite_obras?: number | null
+  recursos: string[]
+  destaque: boolean
+  ordem: number
+}
+
+export interface Auditoria {
+  id: number
+  empresa_id?: string | null
+  usuario_id?: string | null
+  usuario_login?: string | null
+  tabela: string
+  operacao: 'INSERT' | 'UPDATE' | 'DELETE'
+  registro_id?: string | null
+  detalhe?: unknown
+  created_at: string
+}
 
 export interface Obra {
   id: string
@@ -10,6 +48,9 @@ export interface Obra {
   lng?: number | null
   raio_tolerancia: number
   ativo: boolean
+  exigir_foto?: boolean
+  exigir_face?: boolean
+  empresa_id?: string | null
   criado_em?: string
 }
 
@@ -40,7 +81,9 @@ export interface Profile {
   id: string
   nome: string
   login: string
+  email?: string | null
   role: UserRole
+  empresa_id?: string | null
   obra_id?: string | null
   colaborador_id?: string | null
   ativo: boolean

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Building2, MapPin, Pencil, Plus, Target, Trash2 } from 'lucide-react'
+import { Building2, Camera, MapPin, Pencil, Plus, QrCode, ScanFace, Target, Trash2 } from 'lucide-react'
 import { useAppData } from '@/data/useAppData'
 import { api } from '@/data/api'
 import type { Obra } from '@/data/types'
@@ -10,6 +10,7 @@ import { Field, Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Dialog } from '@/components/ui/dialog'
 import { useToast } from '@/components/ui/toast'
+import { ObraQrDialog } from './ObraQrDialog'
 
 type FormState = Partial<Obra> & { nome: string }
 
@@ -17,6 +18,7 @@ export function ObrasPage() {
   const { obras, colaboradores } = useAppData()
   const toast = useToast()
   const [form, setForm] = useState<FormState | null>(null)
+  const [qrObra, setQrObra] = useState<Obra | null>(null)
   const [salvando, setSalvando] = useState(false)
   const [capturando, setCapturando] = useState(false)
 
@@ -129,7 +131,10 @@ export function ObrasPage() {
                   <span className="text-xs font-semibold text-muted-foreground">
                     {total} colaborador{total === 1 ? '' : 'es'}
                   </span>
-                  <div className="flex gap-2">
+                  <div className="flex gap-1.5">
+                    <Button variant="outline" size="sm" onClick={() => setQrObra(o)}>
+                      <QrCode className="h-3.5 w-3.5" /> QR
+                    </Button>
                     <Button variant="outline" size="sm" onClick={() => setForm({ ...o })}>
                       <Pencil className="h-3.5 w-3.5" /> Editar
                     </Button>
@@ -206,6 +211,27 @@ export function ObrasPage() {
               </div>
             </div>
 
+            <div className="grid grid-cols-2 gap-3">
+              <label className="flex items-center gap-2 rounded-xl border border-border p-3 text-sm font-semibold">
+                <input
+                  type="checkbox"
+                  checked={!!form.exigir_foto}
+                  onChange={(e) => setForm({ ...form, exigir_foto: e.target.checked })}
+                  className="h-4 w-4 accent-[hsl(var(--primary))]"
+                />
+                <Camera className="h-4 w-4 text-muted-foreground" /> Exigir foto
+              </label>
+              <label className="flex items-center gap-2 rounded-xl border border-border p-3 text-sm font-semibold">
+                <input
+                  type="checkbox"
+                  checked={!!form.exigir_face}
+                  onChange={(e) => setForm({ ...form, exigir_face: e.target.checked })}
+                  className="h-4 w-4 accent-[hsl(var(--primary))]"
+                />
+                <ScanFace className="h-4 w-4 text-muted-foreground" /> Verificar face
+              </label>
+            </div>
+
             <div className="flex justify-end gap-2 pt-3">
               <Button type="button" variant="outline" onClick={() => setForm(null)}>
                 Cancelar
@@ -217,6 +243,8 @@ export function ObrasPage() {
           </form>
         )}
       </Dialog>
+
+      <ObraQrDialog obra={qrObra} open={!!qrObra} onClose={() => setQrObra(null)} />
     </div>
   )
 }

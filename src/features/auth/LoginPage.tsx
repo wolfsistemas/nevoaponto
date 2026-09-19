@@ -142,6 +142,18 @@ export function LoginPage() {
             </Button>
           </form>
 
+          <div className="mt-4 flex items-center justify-between text-sm">
+            <Link
+              to={ROUTES.recuperarSenha}
+              className="font-semibold text-muted-foreground transition-colors hover:text-primary"
+            >
+              Esqueci a senha
+            </Link>
+            <Link to={ROUTES.signup} className="font-semibold text-primary hover:underline">
+              Criar conta
+            </Link>
+          </div>
+
           {api.modo === 'local' && (
             <div className="mt-8">
               <div className="mb-3 flex items-center gap-3">
