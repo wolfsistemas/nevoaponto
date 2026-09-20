@@ -398,11 +398,21 @@ Deno.serve(async (req) => {
       }
       const { flags, signCount, credId, coseKey } = parseAuthData(attestation.authData)
       if (!(flags & 0x01)) return json({ error: 'Presenca do usuario nao confirmada.' }, 400)
+      if (!(flags & 0x04)) return json({ error: 'Verificacao biometrica obrigatoria.' }, 400)
       if (!credId || !coseKey) return json({ error: 'Chave publica ausente.' }, 400)
       if (b64urlEncode(credId) !== cred.id) {
         return json({ error: 'Identificador da credencial nao confere.' }, 400)
       }
       const { jwk, alg } = coseParaJwk(coseKey)
+
+      const { data: existente } = await admin
+        .from('webauthn_credenciais')
+        .select('usuario_id')
+        .eq('credencial_id', cred.id)
+        .maybeSingle()
+      if (existente && existente.usuario_id !== usuario.id) {
+        return json({ error: 'Credencial ja vinculada a outro usuario.' }, 409)
+      }
 
       const { error } = await admin.from('webauthn_credenciais').upsert(
         {
