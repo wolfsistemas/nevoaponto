@@ -35,7 +35,7 @@ export const NAV_ITEMS: NavItem[] = [
     to: ROUTES.dashboard,
     label: 'Visao geral',
     icon: LayoutDashboard,
-    roles: ['admin', 'encarregado', 'funcionario'],
+    roles: ['admin', 'encarregado'],
     mobile: true,
   },
   {

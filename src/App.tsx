@@ -28,6 +28,8 @@ import { ROUTES } from '@/lib/brand'
 function RotaPainel() {
   const { user } = useAuth()
   if (user?.role === 'superadmin') return <IrParaAdmin />
+  // O funcionario nao tem visao geral: vai direto para "Bater ponto".
+  if (user?.role === 'funcionario') return <Navigate to={ROUTES.ponto} replace />
   return <DashboardPage />
 }
 

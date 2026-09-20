@@ -21,7 +21,7 @@ export function ProtectedRoute({ children, roles }: { children: ReactNode; roles
   }
 
   if (roles && !roles.includes(user.role)) {
-    return <Navigate to={ROUTES.dashboard} replace />
+    return <Navigate to={user.role === 'funcionario' ? ROUTES.ponto : ROUTES.dashboard} replace />
   }
 
   return <>{children}</>
