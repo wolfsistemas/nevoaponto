@@ -108,7 +108,7 @@ export function AssinaturaPage() {
   if (!isSupabaseConfigured) {
     return (
       <div className="animate-fade-in">
-        <PageHeader titulo="Assinatura" descricao="Planos e cobranca via Mercado Pago." icon={CreditCard} />
+        <PageHeader titulo="Assinatura" descricao="Planos e cobranca da sua empresa pelo Mercado Pago." icon={CreditCard} />
         <EmptyState
           icon={CreditCard}
           titulo="Disponivel com o Supabase configurado"
@@ -124,7 +124,7 @@ export function AssinaturaPage() {
     <div className="animate-fade-in">
       <PageHeader
         titulo="Assinatura"
-        descricao="Escolha o plano e gerencie a cobranca recorrente pelo Mercado Pago."
+        descricao="Escolha o plano da sua empresa e gerencie a cobranca recorrente pelo Mercado Pago."
         icon={CreditCard}
         acao={
           ativa ? (

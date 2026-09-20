@@ -35,10 +35,10 @@ create table if not exists public.planos (
 
 insert into public.planos (id, nome, valor_mensal, limite_colaboradores, limite_obras, recursos, destaque, ordem)
 values
-  ('trial', 'Teste', 0, 10, 1, '["14 dias gratis","Ponto com GPS","Aprovacao do encarregado"]'::jsonb, false, 0),
-  ('essencial', 'Essencial', 149, 10, 1, '["Ate 10 colaboradores","1 obra","Ponto com GPS","Aprovacao","Relatorios essenciais"]'::jsonb, false, 1),
-  ('profissional', 'Profissional', 349, 50, null, '["Ate 50 colaboradores","Obras ilimitadas","Folha com encargos CLT","Producao e empreita","Pagamentos e recibos"]'::jsonb, true, 2),
-  ('corporativo', 'Corporativo', 799, null, null, '["Colaboradores ilimitados","Multiempresa","API e integracoes","Gerente de conta"]'::jsonb, false, 3)
+  ('trial', 'Teste', 0, 10, 1, '["14 dias gratis","Ponto pelo celular","Aprovacao do gestor"]'::jsonb, false, 0),
+  ('essencial', 'Essencial', 149, 10, 1, '["Ate 10 colaboradores","1 local de trabalho","Ponto com geolocalizacao opcional","Aprovacao do gestor","Relatorios essenciais"]'::jsonb, false, 1),
+  ('profissional', 'Profissional', 349, 50, null, '["Ate 50 colaboradores","Locais de trabalho ilimitados","Folha completa com encargos CLT","Diarias, producao e terceiros","Pagamentos e recibos","Relatorios avancados e exportacao"]'::jsonb, true, 2),
+  ('corporativo', 'Corporativo', 799, null, null, '["Colaboradores ilimitados","Multiempresa e multivinculo","Tabelas legais personalizadas","Perfis e permissoes por local","Exportacao para contabilidade","API e integracoes","Gerente de conta dedicado"]'::jsonb, false, 3)
 on conflict (id) do update set
   nome = excluded.nome,
   valor_mensal = excluded.valor_mensal,

@@ -309,7 +309,9 @@ export function SuperAdminPage() {
                       {p.limite_colaboradores ? `Ate ${p.limite_colaboradores} colaboradores` : 'Colaboradores ilimitados'}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {p.limite_obras ? `Ate ${p.limite_obras} obras` : 'Obras ilimitadas'}
+                      {p.limite_obras
+                        ? `Ate ${p.limite_obras} ${p.limite_obras === 1 ? 'local de trabalho' : 'locais de trabalho'}`
+                        : 'Locais de trabalho ilimitados'}
                     </p>
                     <ul className="mt-3 list-disc space-y-1 pl-4 text-xs text-muted-foreground">
                       {(p.recursos ?? []).map((r) => (
