@@ -392,9 +392,16 @@ Deno.serve(async (req) => {
         authData?: Uint8Array
       }
       if (!attestation?.authData) return json({ error: 'Attestation invalida.' }, 400)
+      const rpIdHashEsperado = await sha256(new TextEncoder().encode(rpId))
+      if (b64urlEncode(attestation.authData.slice(0, 32)) !== b64urlEncode(rpIdHashEsperado)) {
+        return json({ error: 'RP ID nao confere.' }, 400)
+      }
       const { flags, signCount, credId, coseKey } = parseAuthData(attestation.authData)
       if (!(flags & 0x01)) return json({ error: 'Presenca do usuario nao confirmada.' }, 400)
       if (!credId || !coseKey) return json({ error: 'Chave publica ausente.' }, 400)
+      if (b64urlEncode(credId) !== cred.id) {
+        return json({ error: 'Identificador da credencial nao confere.' }, 400)
+      }
       const { jwk, alg } = coseParaJwk(coseKey)
 
       const { error } = await admin.from('webauthn_credenciais').upsert(
