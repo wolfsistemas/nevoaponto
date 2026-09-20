@@ -1,14 +1,15 @@
 import { useState, type ReactNode } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
-import { Clock, KeyRound, LogOut, Menu, Moon, Sun, X } from 'lucide-react'
+import { Clock, Fingerprint, KeyRound, LogOut, Menu, Moon, Sun, X } from 'lucide-react'
 import { useAuth } from '@/features/auth/AuthContext'
 import { ChangePasswordDialog } from '@/features/auth/ChangePasswordDialog'
+import { BiometriaDialog } from '@/features/auth/BiometriaDialog'
 import { useTheme } from '@/lib/theme'
 import { BRAND } from '@/lib/brand'
 import { api } from '@/data/api'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
-import { itensDoPerfil } from './nav'
+import { itensDoPerfil, rotuloDoItem } from './nav'
 
 const ROLE_LABEL: Record<string, string> = {
   superadmin: 'Super Admin',
@@ -54,7 +55,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
           }
         >
           <item.icon className="h-[18px] w-[18px]" />
-          {item.label}
+          {rotuloDoItem(item, user.role)}
         </NavLink>
       ))}
     </nav>
@@ -66,6 +67,7 @@ export function AppLayout({ children }: { children?: ReactNode }) {
   const { tema, alternar } = useTheme()
   const [menuAberto, setMenuAberto] = useState(false)
   const [senhaAberta, setSenhaAberta] = useState(false)
+  const [bioAberta, setBioAberta] = useState(false)
   const itens = user ? itensDoPerfil(user.role) : []
   const mobileItems = itens.filter((i) => i.mobile).slice(0, 4)
 
@@ -92,6 +94,12 @@ export function AppLayout({ children }: { children?: ReactNode }) {
             className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-muted px-3 py-2 text-xs font-bold text-muted-foreground transition-colors hover:text-foreground"
           >
             <KeyRound className="h-4 w-4" /> Alterar senha
+          </button>
+          <button
+            onClick={() => setBioAberta(true)}
+            className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-muted px-3 py-2 text-xs font-bold text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <Fingerprint className="h-4 w-4" /> Biometria
           </button>
           <button
             onClick={signOut}
@@ -126,6 +134,15 @@ export function AppLayout({ children }: { children?: ReactNode }) {
               <KeyRound className="h-4 w-4" /> Alterar senha
             </button>
             <button
+              onClick={() => {
+                setMenuAberto(false)
+                setBioAberta(true)
+              }}
+              className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-muted px-3 py-2 text-sm font-bold text-muted-foreground hover:text-foreground"
+            >
+              <Fingerprint className="h-4 w-4" /> Biometria
+            </button>
+            <button
               onClick={signOut}
               className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-muted px-3 py-2 text-sm font-bold text-muted-foreground hover:text-destructive"
             >
@@ -155,6 +172,13 @@ export function AppLayout({ children }: { children?: ReactNode }) {
             aria-label="Alterar senha"
           >
             <KeyRound className="h-5 w-5" />
+          </button>
+          <button
+            onClick={() => setBioAberta(true)}
+            className="rounded-lg border border-border p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            aria-label="Biometria"
+          >
+            <Fingerprint className="h-5 w-5" />
           </button>
           <button
             onClick={alternar}
@@ -193,13 +217,14 @@ export function AppLayout({ children }: { children?: ReactNode }) {
               }
             >
               <item.icon className="h-5 w-5" />
-              {item.label}
+              {rotuloDoItem(item, user?.role ?? 'funcionario')}
             </NavLink>
           ))}
         </nav>
       </div>
 
       <ChangePasswordDialog open={senhaAberta} onClose={() => setSenhaAberta(false)} />
+      <BiometriaDialog open={bioAberta} onClose={() => setBioAberta(false)} />
     </div>
   )
 }

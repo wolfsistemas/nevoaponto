@@ -46,6 +46,30 @@ async function mensagemDaFunction(error: unknown): Promise<string> {
   return mensagem
 }
 
+interface AcessoInput {
+  profile_id?: string
+  nome: string
+  login: string
+  senha?: string
+  role?: 'admin' | 'encarregado' | 'funcionario'
+  colaborador_id?: string | null
+  obra_id?: string | null
+}
+
+/** Cria/atualiza um acesso (Auth + perfil) via Edge Function admin-criar-acesso. */
+async function invocarAdminAcesso(
+  body: AcessoInput,
+): Promise<{ id: string; email: string; login: string; role: string }> {
+  if (!isSupabaseConfigured) {
+    throw new Error('Gestao de acesso disponivel apenas com o Supabase configurado.')
+  }
+  const { data, error } = await getSupabase().functions.invoke('admin-criar-acesso', { body })
+  if (error) throw new Error(await mensagemDaFunction(error))
+  const payload = data as { error?: string; id?: string; email?: string; login?: string; role?: string }
+  if (payload?.error) throw new Error(payload.error)
+  return payload as { id: string; email: string; login: string; role: string }
+}
+
 function competenciaDe(data: string): string {
   const d = new Date(data)
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
@@ -382,28 +406,35 @@ const apiBase = {
     colaborador_id?: string | null
     obra_id?: string | null
   }): Promise<{ id: string; email: string; login: string; role: string }> {
+    return invocarAdminAcesso(input)
+  },
+
+  /**
+   * Atualiza o acesso existente de um colaborador (perfil e, opcionalmente,
+   * login/senha). A senha em branco mantem a atual.
+   */
+  async atualizarAcesso(input: {
+    profile_id: string
+    nome: string
+    login: string
+    senha?: string
+    role?: 'admin' | 'encarregado' | 'funcionario'
+    colaborador_id?: string | null
+    obra_id?: string | null
+  }): Promise<{ id: string; email: string; login: string; role: string }> {
+    return invocarAdminAcesso(input)
+  },
+
+  /** WebAuthn (login por biometria). */
+  async webauthn<T = unknown>(body: Record<string, unknown>): Promise<T> {
     if (!isSupabaseConfigured) {
-      throw new Error('Criacao de acesso disponivel apenas com o Supabase configurado.')
+      throw new Error('Login por biometria disponivel apenas com o Supabase configurado.')
     }
-    const { data, error } = await getSupabase().functions.invoke('admin-criar-acesso', {
-      body: input,
-    })
-    if (error) {
-      let mensagem = error.message
-      const contexto = (error as { context?: Response }).context
-      if (contexto && typeof contexto.json === 'function') {
-        try {
-          const corpo = (await contexto.json()) as { error?: string }
-          if (corpo?.error) mensagem = corpo.error
-        } catch {
-          // mantem a mensagem original
-        }
-      }
-      throw new Error(mensagem)
-    }
-    const payload = data as { error?: string; id?: string; email?: string; login?: string; role?: string }
+    const { data, error } = await getSupabase().functions.invoke('webauthn', { body })
+    if (error) throw new Error(await mensagemDaFunction(error))
+    const payload = data as { error?: string }
     if (payload?.error) throw new Error(payload.error)
-    return payload as { id: string; email: string; login: string; role: string }
+    return data as T
   },
 
   /** Auto-cadastro publico (empresa + admin + obra inicial) via Edge Function. */
@@ -441,6 +472,24 @@ const apiBase = {
 
   async listEmpresas(): Promise<Empresa[]> {
     return isSupabaseConfigured ? sbList<Empresa>('empresas') : []
+  },
+  /** Empresa do usuario logado (RLS ja limita ao proprio tenant). */
+  async minhaEmpresa(): Promise<Empresa | null> {
+    if (!isSupabaseConfigured) return null
+    const { data, error } = await getSupabase().from('empresas').select('*').limit(1).maybeSingle()
+    if (error) throw error
+    return (data as Empresa | null) ?? null
+  },
+  async atualizarEmpresa(id: string, patch: Partial<Empresa>): Promise<Empresa> {
+    if (!isSupabaseConfigured) throw new Error('Disponivel apenas no modo Supabase.')
+    const { data, error } = await getSupabase()
+      .from('empresas')
+      .update(patch)
+      .eq('id', id)
+      .select()
+      .single()
+    if (error) throw error
+    return data as Empresa
   },
   async upsertEmpresa(input: Partial<Empresa> & { nome: string }): Promise<Empresa> {
     if (!isSupabaseConfigured) throw new Error('Disponivel apenas no modo Supabase.')

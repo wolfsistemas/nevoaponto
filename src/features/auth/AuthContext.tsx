@@ -10,11 +10,13 @@ import {
 import { api } from '@/data/api'
 import type { Profile, UserRole } from '@/data/types'
 import { getSupabase, isSupabaseConfigured } from '@/lib/supabase'
+import { autenticarComBiometria } from '@/lib/webauthn'
 
 interface AuthState {
   user: Profile | null
   loading: boolean
   signIn: (login: string, senha: string) => Promise<{ ok: boolean; erro?: string }>
+  entrarComBiometria: (login: string) => Promise<{ ok: boolean; erro?: string }>
   signOut: () => Promise<void>
   signUp: (input: {
     empresa: string
@@ -119,6 +121,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  const entrarComBiometria = useCallback<AuthState['entrarComBiometria']>(async (login) => {
+    const usuario = login.trim().toLowerCase()
+    if (!usuario) return { ok: false, erro: 'Informe o usuario.' }
+    if (!isSupabaseConfigured) {
+      return { ok: false, erro: 'Disponivel apenas com o Supabase configurado.' }
+    }
+    try {
+      const { token_hash } = await autenticarComBiometria(usuario)
+      const { data, error } = await getSupabase().auth.verifyOtp({
+        token_hash,
+        type: 'magiclink',
+      })
+      if (error || !data.user) return { ok: false, erro: 'Nao foi possivel concluir o login biometrico.' }
+      const profiles = await api.listProfiles()
+      const perfil = profiles.find((p) => p.id === data.user!.id) ?? null
+      if (!perfil) return { ok: false, erro: 'Usuario sem perfil ativo.' }
+      setUser(perfil)
+      return { ok: true }
+    } catch (erro) {
+      return {
+        ok: false,
+        erro: erro instanceof Error ? erro.message : 'Falha no login por biometria.',
+      }
+    }
+  }, [])
+
   const signOut = useCallback(async () => {
     if (isSupabaseConfigured) {
       try {
@@ -210,6 +238,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       loading,
       signIn,
+      entrarComBiometria,
       signOut,
       signUp,
       recuperarSenha,
@@ -217,7 +246,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       alterarSenha,
       pode,
     }),
-    [user, loading, signIn, signOut, signUp, recuperarSenha, redefinirSenha, alterarSenha, pode],
+    [
+      user,
+      loading,
+      signIn,
+      entrarComBiometria,
+      signOut,
+      signUp,
+      recuperarSenha,
+      redefinirSenha,
+      alterarSenha,
+      pode,
+    ],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

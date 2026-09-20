@@ -24,6 +24,7 @@ export const ROUTES = {
   dashboard: '/app',
   colaboradores: '/colaboradores',
   obras: '/obras',
+  empresa: '/empresa',
   ponto: '/ponto',
   aprovacao: '/aprovacao',
   folha: '/folha',

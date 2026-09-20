@@ -2,13 +2,16 @@ import { useEffect, useMemo, useState } from 'react'
 import { BarChart3, Download, PieChart, Printer } from 'lucide-react'
 import { useAppData } from '@/data/useAppData'
 import { api, type ApuracaoCompetencia } from '@/data/api'
+import type { Empresa } from '@/data/types'
 import { calcularTotalDiarias } from '@/core/ponto'
 import { PageHeader, StatCard, EmptyState } from '@/components/ui/feedback'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/input'
 import { Table, TableWrap, Td, Th } from '@/components/ui/table'
-import { formatMoney, formatNumber, competenciaLabel, todayISO } from '@/lib/format'
+import { useToast } from '@/components/ui/toast'
+import { formatMoney, formatNumber, formatCnpj, competenciaLabel, todayISO } from '@/lib/format'
+import { BRAND } from '@/lib/brand'
 import {
   Bar,
   BarChart,
@@ -48,12 +51,22 @@ function diasUteis(competencia: string): number {
 
 export function RelatoriosPage() {
   const { colaboradores, pontos, obras } = useAppData()
+  const toast = useToast()
   const [competencia, setCompetencia] = useState(competencias()[0])
   const [apuracao, setApuracao] = useState<ApuracaoCompetencia | null>(null)
+  const [empresa, setEmpresa] = useState<Empresa | null>(null)
 
   useEffect(() => {
     api.apurarCompetencia(competencia).then(setApuracao).catch(() => setApuracao(null))
   }, [competencia])
+
+  useEffect(() => {
+    if (api.modo === 'local') return
+    api
+      .minhaEmpresa()
+      .then(setEmpresa)
+      .catch(() => undefined)
+  }, [])
 
   const linhas = useMemo(() => {
     const uteis = diasUteis(competencia)
@@ -113,6 +126,82 @@ export function RelatoriosPage() {
     URL.revokeObjectURL(url)
   }
 
+  function imprimirRelatorio() {
+    const nomeEmpresa = empresa?.nome || BRAND.name
+    const cnpjEmpresa = empresa?.cnpj ? `CNPJ ${formatCnpj(empresa.cnpj)}` : ''
+    const logoHtml = empresa?.logo_url
+      ? `<img src="${empresa.logo_url}" alt="Logo" />`
+      : `<div class="logo-fallback">${(nomeEmpresa.slice(0, 1) || 'P').toUpperCase()}</div>`
+    const totalDiarias = linhas.reduce((s, l) => s + l.diarias, 0)
+
+    const corpo = linhas
+      .map(
+        (l) => `<tr>
+          <td>${l.nome}</td>
+          <td>${l.tipo}</td>
+          <td class="num">${l.presencas}</td>
+          <td class="num">${l.faltas}</td>
+          <td class="num">${formatNumber(l.diarias)}</td>
+          <td class="num strong">${formatMoney(l.liquido)}</td>
+          <td class="num">${formatMoney(l.encargos)}</td>
+        </tr>`,
+      )
+      .join('')
+
+    const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Relatorio ${competenciaLabel(competencia)}</title>
+      <style>
+        *{box-sizing:border-box}
+        body{font-family:'Segoe UI',Roboto,Arial,sans-serif;color:#0f172a;background:#fff;padding:36px;max-width:920px;margin:0 auto;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+        .cabecalho{display:flex;align-items:center;gap:16px;padding-bottom:18px;border-bottom:3px solid #7c5cff}
+        .cabecalho img{max-height:60px;max-width:200px;object-fit:contain}
+        .logo-fallback{width:52px;height:52px;border-radius:14px;background:#7c5cff;color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:800}
+        .empresa h1{font-size:19px;margin:0}
+        .empresa p{margin:3px 0 0;color:#64748b;font-size:12px}
+        .titulo{margin-left:auto;text-align:right}
+        .titulo .tag{display:inline-block;background:#f1edff;color:#6d28d9;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+        .titulo h2{margin:8px 0 0;font-size:16px}
+        .resumo{display:flex;gap:10px;flex-wrap:wrap;margin:22px 0}
+        .box{flex:1;min-width:150px;border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;background:#f8fafc}
+        .box span{display:block;font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;font-weight:700}
+        .box strong{display:block;margin-top:4px;font-size:17px}
+        table{width:100%;border-collapse:collapse;font-size:12px}
+        th{text-align:left;background:#f1f5f9;padding:8px 10px;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#475569}
+        td{padding:7px 10px;border-bottom:1px solid #eef2f7}
+        td.num{text-align:right;font-variant-numeric:tabular-nums}
+        td.strong{font-weight:700;color:#6d28d9}
+        tfoot td{font-weight:800;border-top:2px solid #e2e8f0;border-bottom:none}
+        .gerado{margin-top:26px;font-size:10px;color:#94a3b8;text-align:center}
+        @media print{body{padding:20px}}
+      </style></head><body>
+      <div class="cabecalho">
+        <div>${logoHtml}</div>
+        <div class="empresa"><h1>${nomeEmpresa}</h1><p>${cnpjEmpresa}</p></div>
+        <div class="titulo"><span class="tag">Relatorio de ponto</span><h2>${competenciaLabel(competencia)}</h2></div>
+      </div>
+      <div class="resumo">
+        <div class="box"><span>Custo total estimado</span><strong>${formatMoney(total)}</strong></div>
+        <div class="box"><span>Colaboradores</span><strong>${linhas.length}</strong></div>
+        <div class="box"><span>Diarias apuradas</span><strong>${formatNumber(totalDiarias)}</strong></div>
+      </div>
+      <table>
+        <thead><tr><th>Colaborador</th><th>Contrato</th><th class="num">Presencas</th><th class="num">Faltas</th><th class="num">Diarias</th><th class="num">Liquido</th><th class="num">Encargos</th></tr></thead>
+        <tbody>${corpo}</tbody>
+        <tfoot><tr><td colspan="5">Total</td><td class="num">${formatMoney(total)}</td><td></td></tr></tfoot>
+      </table>
+      <p class="gerado">Documento gerado por ${BRAND.name} em ${new Date().toLocaleString('pt-BR')}.</p>
+      </body></html>`
+
+    const w = window.open('', '_blank', 'width=1000,height=900')
+    if (!w) {
+      toast.push('Habilite pop-ups para imprimir o relatorio.', 'erro')
+      return
+    }
+    w.document.write(html)
+    w.document.close()
+    w.focus()
+    setTimeout(() => w.print(), 400)
+  }
+
   return (
     <div className="animate-fade-in">
       <PageHeader
@@ -128,7 +217,7 @@ export function RelatoriosPage() {
                 </option>
               ))}
             </Select>
-            <Button variant="outline" onClick={() => window.print()}>
+            <Button variant="outline" onClick={imprimirRelatorio} disabled={linhas.length === 0}>
               <Printer className="h-4 w-4" /> Imprimir
             </Button>
             <Button onClick={exportarCsv} disabled={linhas.length === 0}>

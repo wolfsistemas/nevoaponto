@@ -13,6 +13,7 @@ import { LandingPage } from '@/features/landing/LandingPage'
 import { DashboardPage } from '@/features/dashboard/DashboardPage'
 import { ColaboradoresPage } from '@/features/colaboradores/ColaboradoresPage'
 import { ObrasPage } from '@/features/obras/ObrasPage'
+import { EmpresaPage } from '@/features/empresa/EmpresaPage'
 import { PontoPage } from '@/features/ponto/PontoPage'
 import { AprovacaoPage } from '@/features/ponto/AprovacaoPage'
 import { FolhaPage } from '@/features/folha/FolhaPage'
@@ -64,14 +65,71 @@ export default function App() {
                 }
               >
                 <Route path={ROUTES.dashboard} element={<RotaPainel />} />
-                <Route path={ROUTES.colaboradores} element={<ColaboradoresPage />} />
-                <Route path={ROUTES.obras} element={<ObrasPage />} />
+                <Route
+                  path={ROUTES.colaboradores}
+                  element={
+                    <ProtectedRoute roles={['admin', 'encarregado']}>
+                      <ColaboradoresPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path={ROUTES.obras}
+                  element={
+                    <ProtectedRoute roles={['admin']}>
+                      <ObrasPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path={ROUTES.empresa}
+                  element={
+                    <ProtectedRoute roles={['admin']}>
+                      <EmpresaPage />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route path={ROUTES.ponto} element={<PontoPage />} />
-                <Route path={ROUTES.aprovacao} element={<AprovacaoPage />} />
-                <Route path={ROUTES.folha} element={<FolhaPage />} />
-                <Route path={ROUTES.pagamentos} element={<PagamentosPage />} />
-                <Route path={ROUTES.relatorios} element={<RelatoriosPage />} />
-                <Route path={ROUTES.assinatura} element={<AssinaturaPage />} />
+                <Route
+                  path={ROUTES.aprovacao}
+                  element={
+                    <ProtectedRoute roles={['admin', 'encarregado']}>
+                      <AprovacaoPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path={ROUTES.folha}
+                  element={
+                    <ProtectedRoute roles={['admin', 'encarregado', 'funcionario']}>
+                      <FolhaPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path={ROUTES.pagamentos}
+                  element={
+                    <ProtectedRoute roles={['admin']}>
+                      <PagamentosPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path={ROUTES.relatorios}
+                  element={
+                    <ProtectedRoute roles={['admin', 'encarregado']}>
+                      <RelatoriosPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path={ROUTES.assinatura}
+                  element={
+                    <ProtectedRoute roles={['admin']}>
+                      <AssinaturaPage />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route
                   path={ROUTES.superadmin}
                   element={

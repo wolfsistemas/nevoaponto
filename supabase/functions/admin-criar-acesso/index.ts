@@ -55,6 +55,7 @@ Deno.serve(async (req) => {
       : 'funcionario'
     const colaboradorId = body.colaborador_id ? String(body.colaborador_id) : null
     const obraId = body.obra_id ? String(body.obra_id) : null
+    const perfilId = body.profile_id ? String(body.profile_id) : null
 
     const empresaId =
       perfil.role === 'superadmin' && body.empresa_id
@@ -66,10 +67,47 @@ Deno.serve(async (req) => {
     if (!login || !/^[a-z0-9._-]+$/.test(login)) {
       return json({ error: 'Login invalido. Use letras, numeros, ponto, hifen ou underline.' }, 400)
     }
-    if (senha.length < 8) return json({ error: 'A senha deve ter ao menos 8 caracteres.' }, 400)
 
     const emailInformado = String(body.email ?? '').trim().toLowerCase()
     const email = emailInformado || (login.includes('@') ? login : `${login}@pontoflow.app`)
+
+    // Modo edicao: atualiza um acesso existente. A senha e opcional
+    // (em branco mantem a senha atual).
+    if (perfilId) {
+      const { data: alvo, error: alvoError } = await admin
+        .from('profiles')
+        .select('id, empresa_id, email')
+        .eq('id', perfilId)
+        .single()
+      if (alvoError || !alvo) return json({ error: 'Acesso nao encontrado.' }, 404)
+      if (perfil.role !== 'superadmin' && alvo.empresa_id !== empresaId) {
+        return json({ error: 'Acesso pertence a outra empresa.' }, 403)
+      }
+      if (senha && senha.length < 8) {
+        return json({ error: 'A senha deve ter ao menos 8 caracteres.' }, 400)
+      }
+
+      const authUpdate: { password?: string; email?: string; email_confirm?: boolean } = {}
+      if (senha) authUpdate.password = senha
+      if (email && email !== alvo.email) {
+        authUpdate.email = email
+        authUpdate.email_confirm = true
+      }
+      if (Object.keys(authUpdate).length > 0) {
+        const { error: updAuthError } = await admin.auth.admin.updateUserById(perfilId, authUpdate)
+        if (updAuthError) return json({ error: updAuthError.message }, 400)
+      }
+
+      const patch: Record<string, unknown> = { nome, login, email, role, empresa_id: empresaId }
+      if (body.colaborador_id !== undefined) patch.colaborador_id = colaboradorId
+      if (body.obra_id !== undefined) patch.obra_id = obraId
+      const { error: updError } = await admin.from('profiles').update(patch).eq('id', perfilId)
+      if (updError) return json({ error: updError.message }, 400)
+
+      return json({ id: perfilId, email, login, role, atualizado: true })
+    }
+
+    if (senha.length < 8) return json({ error: 'A senha deve ter ao menos 8 caracteres.' }, 400)
 
     const { data: criado, error: createError } = await admin.auth.admin.createUser({
       email,

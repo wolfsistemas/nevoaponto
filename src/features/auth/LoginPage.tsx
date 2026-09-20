@@ -1,11 +1,12 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, Clock, Lock, ShieldCheck, User, Wallet } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Clock, Fingerprint, Lock, ShieldCheck, User, Wallet } from 'lucide-react'
 import { useAuth } from './AuthContext'
 import { Button } from '@/components/ui/button'
 import { Field, Input } from '@/components/ui/input'
 import { BRAND, ROUTES } from '@/lib/brand'
 import { api } from '@/data/api'
+import { biometriaDisponivel } from '@/lib/webauthn'
 
 const DEMO = [
   { login: 'admin', senha: 'demo', label: 'Administrador', desc: 'Acesso total' },
@@ -14,12 +15,13 @@ const DEMO = [
 ]
 
 export function LoginPage() {
-  const { signIn } = useAuth()
+  const { signIn, entrarComBiometria } = useAuth()
   const navigate = useNavigate()
   const [login, setLogin] = useState('')
   const [senha, setSenha] = useState('')
   const [erro, setErro] = useState('')
   const [carregando, setCarregando] = useState(false)
+  const [bioOk, setBioOk] = useState(false)
 
   // O Super Admin tem um portal exclusivo (admin.html) fora do app comum.
   useEffect(() => {
@@ -27,6 +29,10 @@ export function LoginPage() {
       window.location.assign(`${import.meta.env.BASE_URL}admin.html`)
     }
   }, [login])
+
+  useEffect(() => {
+    biometriaDisponivel().then(setBioOk).catch(() => setBioOk(false))
+  }, [])
 
   async function entrar(e: FormEvent) {
     e.preventDefault()
@@ -36,6 +42,19 @@ export function LoginPage() {
     setCarregando(false)
     if (res.ok) navigate(ROUTES.dashboard, { replace: true })
     else setErro(res.erro ?? 'Nao foi possivel entrar.')
+  }
+
+  async function entrarBio() {
+    if (!login.trim()) {
+      setErro('Informe o usuario para usar a biometria.')
+      return
+    }
+    setErro('')
+    setCarregando(true)
+    const res = await entrarComBiometria(login)
+    setCarregando(false)
+    if (res.ok) navigate(ROUTES.dashboard, { replace: true })
+    else setErro(res.erro ?? 'Nao foi possivel entrar com biometria.')
   }
 
   async function acessoDemo(usuario: string) {
@@ -147,6 +166,18 @@ export function LoginPage() {
               {carregando ? 'Entrando...' : 'Entrar'}
               {!carregando && <ArrowRight className="h-4 w-4" />}
             </Button>
+            {bioOk && (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                size="lg"
+                onClick={entrarBio}
+                disabled={carregando}
+              >
+                <Fingerprint className="h-4 w-4" /> Entrar com biometria
+              </Button>
+            )}
           </form>
 
           <div className="mt-4 flex items-center justify-between text-sm">

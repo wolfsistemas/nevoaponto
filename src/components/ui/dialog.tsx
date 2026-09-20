@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -26,8 +27,8 @@ export function Dialog({ open, onClose, title, description, children, footer, cl
 
   if (!open) return null
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
+  const conteudo = (
+    <div className="fixed inset-0 z-[80] flex items-end justify-center p-0 sm:items-center sm:p-4">
       <div
         className="absolute inset-0 bg-foreground/40 backdrop-blur-sm"
         onClick={onClose}
@@ -61,4 +62,6 @@ export function Dialog({ open, onClose, title, description, children, footer, cl
       </div>
     </div>
   )
+
+  return createPortal(conteudo, document.body)
 }

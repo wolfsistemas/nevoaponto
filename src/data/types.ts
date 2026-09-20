@@ -12,6 +12,7 @@ export interface Empresa {
   status: 'trial' | 'ativo' | 'suspenso' | 'cancelado'
   trial_ate?: string | null
   valor_mensal: number
+  logo_url?: string | null
   termos_aceitos_em?: string | null
   termos_versao?: string | null
   created_at?: string

@@ -56,6 +56,13 @@ export function onlyDigits(value: string | null | undefined): string {
   return (value ?? '').replace(/\D/g, '')
 }
 
+export function formatCnpj(value: string | null | undefined): string {
+  if (!value) return ''
+  const nums = value.replace(/\D/g, '')
+  if (nums.length !== 14) return value
+  return nums.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5')
+}
+
 export function dayKey(value: string | Date): string {
   const d = value instanceof Date ? value : new Date(value)
   const y = d.getUTCFullYear()

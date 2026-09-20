@@ -1,8 +1,8 @@
-import { useMemo, useState, type FormEvent } from 'react'
-import { KeyRound, Pencil, Plus, Search, Power, Users } from 'lucide-react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { KeyRound, Pencil, Plus, Search, Power, ShieldCheck, Users } from 'lucide-react'
 import { useAppData } from '@/data/useAppData'
 import { api } from '@/data/api'
-import type { Colaborador } from '@/data/types'
+import type { Colaborador, Profile } from '@/data/types'
 import type { TipoContrato } from '@/core/types'
 import { PageHeader, EmptyState } from '@/components/ui/feedback'
 import { Card } from '@/components/ui/card'
@@ -57,12 +57,33 @@ export function ColaboradoresPage() {
   const [form, setForm] = useState<FormState | null>(null)
   const [salvando, setSalvando] = useState(false)
   const [acessoDe, setAcessoDe] = useState<Colaborador | null>(null)
-  const [acesso, setAcesso] = useState<{ login: string; senha: string; role: RoleAcesso }>({
+  const [acesso, setAcesso] = useState<{
+    profileId?: string
+    login: string
+    senha: string
+    role: RoleAcesso
+  }>({
     login: '',
     senha: '',
     role: 'funcionario',
   })
   const [criandoAcesso, setCriandoAcesso] = useState(false)
+  const [perfis, setPerfis] = useState<Profile[]>([])
+
+  useEffect(() => {
+    api
+      .listProfiles()
+      .then(setPerfis)
+      .catch(() => setPerfis([]))
+  }, [])
+
+  const acessoPorColaborador = useMemo(() => {
+    const mapa = new Map<string, Profile>()
+    for (const p of perfis) {
+      if (p.colaborador_id) mapa.set(p.colaborador_id, p)
+    }
+    return mapa
+  }, [perfis])
 
   const lista = useMemo(() => {
     const termo = busca.toLowerCase()
@@ -115,31 +136,63 @@ export function ColaboradoresPage() {
   }
 
   function abrirAcesso(c: Colaborador) {
-    setAcesso({ login: sugerirLogin(c), senha: '', role: 'funcionario' })
+    const perfil = acessoPorColaborador.get(c.id)
+    const role: RoleAcesso =
+      perfil && (perfil.role === 'admin' || perfil.role === 'encarregado' || perfil.role === 'funcionario')
+        ? perfil.role
+        : 'funcionario'
+    setAcesso({
+      profileId: perfil?.id,
+      login: perfil?.login ?? sugerirLogin(c),
+      senha: '',
+      role,
+    })
     setAcessoDe(c)
   }
 
   async function gerarAcesso(e: FormEvent) {
     e.preventDefault()
     if (!acessoDe) return
-    if (acesso.senha.length < 8) {
+    const editando = Boolean(acesso.profileId)
+    if (!editando && acesso.senha.length < 8) {
       toast.push('A senha deve ter ao menos 8 caracteres.', 'erro')
+      return
+    }
+    if (acesso.senha && acesso.senha.length < 8) {
+      toast.push('A nova senha deve ter ao menos 8 caracteres.', 'erro')
       return
     }
     setCriandoAcesso(true)
     try {
-      const res = await api.criarAcesso({
-        nome: acessoDe.nome,
-        login: acesso.login,
-        senha: acesso.senha,
-        role: acesso.role,
-        colaborador_id: acessoDe.id,
-        obra_id: acessoDe.obra_id ?? null,
-      })
-      toast.push(`Acesso criado: ${res.email}. Entregue a senha ao colaborador.`, 'sucesso')
+      if (editando && acesso.profileId) {
+        await api.atualizarAcesso({
+          profile_id: acesso.profileId,
+          nome: acessoDe.nome,
+          login: acesso.login,
+          senha: acesso.senha || undefined,
+          role: acesso.role,
+          colaborador_id: acessoDe.id,
+          obra_id: acessoDe.obra_id ?? null,
+        })
+        toast.push('Acesso atualizado.', 'sucesso')
+      } else {
+        const res = await api.criarAcesso({
+          nome: acessoDe.nome,
+          login: acesso.login,
+          senha: acesso.senha,
+          role: acesso.role,
+          colaborador_id: acessoDe.id,
+          obra_id: acessoDe.obra_id ?? null,
+        })
+        toast.push(`Acesso criado: ${res.email}. Entregue a senha ao colaborador.`, 'sucesso')
+      }
+      api
+        .listProfiles()
+        .then(setPerfis)
+        .catch(() => undefined)
       setAcessoDe(null)
     } catch (err) {
-      toast.push(err instanceof Error ? err.message : 'Erro ao criar acesso.', 'erro')
+      toast.push(err instanceof Error ? err.message : 'Erro ao salvar acesso.', 'erro')
     } finally {
       setCriandoAcesso(false)
     }
@@ -219,6 +272,11 @@ export function ColaboradoresPage() {
                 <p>{nomeObra(c.obra_id)}</p>
                 <p>CPF: {formatCpf(c.cpf) || '-'}</p>
                 {c.telefone && <p>Tel: {c.telefone}</p>}
+                {acessoPorColaborador.has(c.id) && (
+                  <p className="flex items-center gap-1 font-semibold text-success">
+                    <ShieldCheck className="h-3 w-3" /> Acesso ao app ativo
+                  </p>
+                )}
               </div>
 
               <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
@@ -246,7 +304,7 @@ export function ColaboradoresPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => abrirAcesso(c)}
-                  title="Criar acesso ao app"
+                  title={acessoPorColaborador.has(c.id) ? 'Editar acesso ao app' : 'Criar acesso ao app'}
                 >
                   <KeyRound className="h-3.5 w-3.5" />
                 </Button>
@@ -428,10 +486,12 @@ export function ColaboradoresPage() {
       <Dialog
         open={Boolean(acessoDe)}
         onClose={() => setAcessoDe(null)}
-        title="Criar acesso ao app"
+        title={acesso.profileId ? 'Editar acesso ao app' : 'Criar acesso ao app'}
         description={
           acessoDe
-            ? `${acessoDe.nome} vai entrar com o usuario e a senha abaixo.`
+            ? acesso.profileId
+              ? `${acessoDe.nome} ja possui acesso. Ajuste o perfil ou redefina a senha.`
+              : `${acessoDe.nome} vai entrar com o usuario e a senha abaixo.`
             : 'Gere o login do colaborador.'
         }
       >
@@ -447,13 +507,13 @@ export function ColaboradoresPage() {
                   required
                 />
               </Field>
-              <Field label="Senha (min. 8)">
+              <Field label={acesso.profileId ? 'Nova senha (opcional)' : 'Senha (min. 8)'}>
                 <Input
                   value={acesso.senha}
                   onChange={(e) => setAcesso({ ...acesso, senha: e.target.value })}
-                  placeholder="Senha inicial"
+                  placeholder={acesso.profileId ? 'Deixe em branco para manter' : 'Senha inicial'}
                   autoComplete="new-password"
-                  required
+                  required={!acesso.profileId}
                 />
               </Field>
             </div>
@@ -476,8 +536,10 @@ export function ColaboradoresPage() {
               <strong>
                 {acesso.login ? `${acesso.login}@pontoflow.app` : 'usuario@pontoflow.app'}
               </strong>
-              . Compartilhe o usuario e a senha com o colaborador e oriente a troca no primeiro
-              acesso.
+              .{' '}
+              {acesso.profileId
+                ? 'Se informar uma nova senha, oriente o colaborador a usa-la no proximo acesso.'
+                : 'Compartilhe o usuario e a senha com o colaborador e oriente a troca no primeiro acesso.'}
             </p>
 
             <div className="flex justify-end gap-2 pt-3">
@@ -485,7 +547,11 @@ export function ColaboradoresPage() {
                 Cancelar
               </Button>
               <Button type="submit" disabled={criandoAcesso}>
-                {criandoAcesso ? 'Criando...' : 'Criar acesso'}
+                {criandoAcesso
+                  ? 'Salvando...'
+                  : acesso.profileId
+                    ? 'Salvar acesso'
+                    : 'Criar acesso'}
               </Button>
             </div>
           </form>
