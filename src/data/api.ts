@@ -1,5 +1,13 @@
 import { calcularTotalDiarias, proximaMatricula } from '@/core/ponto'
 import { calcularFolha, type ResultadoFolha } from '@/core/folha'
+import {
+  calcularJornada,
+  configDaObra,
+  snapshotJornada,
+  valorHoraColaborador,
+  type JornadaConfig,
+  type ResumoJornada,
+} from '@/core/jornada'
 import type { PontoRegistro, StatusPonto } from '@/core/types'
 import { getSupabase, isSupabaseConfigured } from '@/lib/supabase'
 import { localStore, novoId } from './localStore'
@@ -42,9 +50,37 @@ export interface LancamentoFolhaInput {
   adiantamentos?: number
   /** Descontos informados pelo contador */
   descontosInformados?: number
+  /** Lancar os atrasos apurados no ponto como desconto em reais */
+  descontarAtrasos?: boolean
 }
 
 const round2 = (v: number) => Math.round(v * 100) / 100
+
+/** Apura a jornada (horas extras/atrasos) do colaborador na competencia. */
+function apurarJornada(
+  colaborador: Colaborador,
+  pontos: PontoRegistro[],
+  obras: Obra[],
+  competencia: string,
+): { config: JornadaConfig; resumo: ResumoJornada; valorHora: number } {
+  const config = configDaObra(obras.find((o) => o.id === colaborador.obra_id) ?? null)
+  const registros = pontos.filter(
+    (p) =>
+      p.colaborador_id === colaborador.id &&
+      p.status === 'VALIDADO' &&
+      competenciaDe(p.hora_registro) === competencia,
+  )
+  const resumo = calcularJornada(registros, config)
+  const valorHora = valorHoraColaborador(
+    {
+      tipo_contrato: colaborador.tipo_contrato,
+      salario_base: colaborador.salario_base,
+      valor_diaria: colaborador.valor_diaria,
+    },
+    config,
+  )
+  return { config, resumo, valorHora }
+}
 
 /** Extrai a mensagem de erro de uma FunctionsHttpError do supabase-js. */
 async function mensagemDaFunction(error: unknown): Promise<string> {
@@ -616,18 +652,16 @@ const apiBase = {
           })}`
         : undefined
 
-    let totalDiarias = input.totalDiarias
-    if (totalDiarias == null) {
-      const pontos = await api.listPontos()
-      totalDiarias = calcularTotalDiarias(
-        pontos.filter(
-          (p) =>
-            p.colaborador_id === c.id &&
-            p.status === 'VALIDADO' &&
-            competenciaDe(p.hora_registro) === input.competencia,
-        ),
-      )
-    }
+    const [pontos, obras] = await Promise.all([api.listPontos(), api.listObras()])
+    const pontosColab = pontos.filter(
+      (p) =>
+        p.colaborador_id === c.id &&
+        p.status === 'VALIDADO' &&
+        competenciaDe(p.hora_registro) === input.competencia,
+    )
+
+    const totalDiarias = input.totalDiarias ?? calcularTotalDiarias(pontosColab)
+    const { resumo, valorHora } = apurarJornada(c, pontos, obras, input.competencia)
 
     const resultado = calcularFolha({
       colaborador: {
@@ -645,6 +679,10 @@ const apiBase = {
       outrosProventos: input.outrosProventos,
       adiantamentos: input.adiantamentos,
       descontosInformados: input.descontosInformados,
+      atrasoMinutos: resumo.totalAtrasoMin,
+      valorHora,
+      descontarAtrasos: input.descontarAtrasos,
+      jornada: snapshotJornada(resumo, valorHora),
     })
 
     const payload = {
@@ -678,10 +716,11 @@ const apiBase = {
 
   /** Apura a competencia para todos os colaboradores ativos. */
   async apurarCompetencia(competencia: string): Promise<ApuracaoCompetencia> {
-    const [colaboradores, pontos, salvos] = await Promise.all([
+    const [colaboradores, pontos, salvos, obras] = await Promise.all([
       api.listColaboradores(),
       api.listPontos(),
       api.listFolhaItens(competencia),
+      api.listObras(),
     ])
 
     const itens: ResultadoFolha[] = colaboradores
@@ -698,6 +737,7 @@ const apiBase = {
             p.status === 'VALIDADO' &&
             competenciaDe(p.hora_registro) === competencia,
         )
+        const { resumo, valorHora } = apurarJornada(c, pontos, obras, competencia)
 
         return calcularFolha({
           colaborador: {
@@ -710,6 +750,7 @@ const apiBase = {
           },
           competencia,
           totalDiarias: calcularTotalDiarias(pontosColab),
+          jornada: snapshotJornada(resumo, valorHora),
         })
       })
 
@@ -866,7 +907,8 @@ const apiBase = {
       const { data: fech, error: e2 } = await sb
         .from('fechamentos')
         .update({ status: 'ESTORNADO', data_pagamento: null })
-        .like('periodo_inicio', `${competencia}-%`)
+        .gte('periodo_inicio', `${competencia}-01`)
+        .lte('periodo_inicio', competenciaFim(competencia))
         .neq('status', 'ESTORNADO')
         .select('id')
       if (e2) throw e2

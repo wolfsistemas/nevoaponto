@@ -71,6 +71,30 @@ describe('calcularFolha CLT', () => {
     })
     expect(r.totalProventos).toBe(3500)
   })
+
+  it('desconta atrasos em reais apenas quando solicitado', () => {
+    const semDesconto = calcularFolha({
+      colaborador: clt,
+      competencia: '2025-09',
+      atrasoMinutos: 60,
+      valorHora: 20,
+    })
+    expect(semDesconto.totalDescontos).toBe(0)
+
+    const comDesconto = calcularFolha({
+      colaborador: clt,
+      competencia: '2025-09',
+      atrasoMinutos: 90,
+      valorHora: 20,
+      descontarAtrasos: true,
+    })
+    expect(comDesconto.descontos).toContainEqual({
+      descricao: 'Atrasos',
+      referencia: '1h30',
+      valor: 30,
+    })
+    expect(comDesconto.valorLiquido).toBe(2970)
+  })
 })
 
 describe('calcularFolha nao-CLT', () => {

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Building2, Camera, MapPin, Pencil, Plus, QrCode, ScanFace, Target, Trash2 } from 'lucide-react'
+import { Building2, Camera, Clock, MapPin, Pencil, Plus, QrCode, ScanFace, Target, Timer, Trash2 } from 'lucide-react'
 import { useAppData } from '@/data/useAppData'
 import { api } from '@/data/api'
 import type { Obra } from '@/data/types'
@@ -30,6 +30,10 @@ export function ObrasPage() {
       await api.upsertObra({
         ...form,
         raio_tolerancia: Number(form.raio_tolerancia ?? 80),
+        horas_semanais: Number(form.horas_semanais ?? 44),
+        dias_uteis: Number(form.dias_uteis ?? 5),
+        tolerancia_minutos: Number(form.tolerancia_minutos ?? 10),
+        banco_horas: Boolean(form.banco_horas),
         lat: form.lat != null ? Number(form.lat) : null,
         lng: form.lng != null ? Number(form.lng) : null,
       })
@@ -79,7 +83,19 @@ export function ObrasPage() {
         descricao="Locais, coordenadas e raio de tolerancia do ponto."
         icon={Building2}
         acao={
-          <Button onClick={() => setForm({ nome: '', raio_tolerancia: 80, ativo: true })}>
+          <Button
+            onClick={() =>
+              setForm({
+                nome: '',
+                raio_tolerancia: 80,
+                ativo: true,
+                horas_semanais: 44,
+                dias_uteis: 5,
+                tolerancia_minutos: 10,
+                banco_horas: false,
+              })
+            }
+          >
             <Plus className="h-4 w-4" /> Novo local
           </Button>
         }
@@ -130,6 +146,31 @@ export function ObrasPage() {
                     <p className="mt-0.5 font-bold">{o.raio_tolerancia} m</p>
                   </div>
                 </div>
+
+                <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded-lg bg-muted/60 p-2">
+                    <p className="flex items-center gap-1 font-semibold text-muted-foreground">
+                      <Clock className="h-3 w-3" /> Jornada
+                    </p>
+                    <p className="mt-0.5 font-bold">
+                      {Number(o.horas_semanais ?? 44)} h/semana
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-muted/60 p-2">
+                    <p className="flex items-center gap-1 font-semibold text-muted-foreground">
+                      <Timer className="h-3 w-3" /> Tolerancia
+                    </p>
+                    <p className="mt-0.5 font-bold">
+                      {Number(o.tolerancia_minutos ?? 10)} min/dia
+                    </p>
+                  </div>
+                </div>
+
+                {o.banco_horas && (
+                  <div className="mt-2">
+                    <Badge variant="default">Banco de horas ativo</Badge>
+                  </div>
+                )}
 
                 <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
                   <span className="text-xs font-semibold text-muted-foreground">
@@ -250,6 +291,52 @@ export function ObrasPage() {
                 />
                 <ScanFace className="h-4 w-4 text-muted-foreground" /> Verificar face
               </label>
+            </div>
+
+            <div className="rounded-xl border border-border p-3">
+              <p className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                <Clock className="h-3.5 w-3.5" /> Jornada e atrasos
+              </p>
+              <div className="grid grid-cols-3 gap-3">
+                <Field label="Horas semanais">
+                  <Input
+                    type="number"
+                    step="0.5"
+                    value={form.horas_semanais ?? 44}
+                    onChange={(e) => setForm({ ...form, horas_semanais: Number(e.target.value) })}
+                  />
+                </Field>
+                <Field label="Dias uteis">
+                  <Input
+                    type="number"
+                    min={1}
+                    max={7}
+                    value={form.dias_uteis ?? 5}
+                    onChange={(e) => setForm({ ...form, dias_uteis: Number(e.target.value) })}
+                  />
+                </Field>
+                <Field label="Tolerancia (min/dia)">
+                  <Input
+                    type="number"
+                    min={0}
+                    value={form.tolerancia_minutos ?? 10}
+                    onChange={(e) => setForm({ ...form, tolerancia_minutos: Number(e.target.value) })}
+                  />
+                </Field>
+              </div>
+              <label className="mt-3 flex items-center gap-2 rounded-xl border border-border p-3 text-sm font-semibold">
+                <input
+                  type="checkbox"
+                  checked={!!form.banco_horas}
+                  onChange={(e) => setForm({ ...form, banco_horas: e.target.checked })}
+                  className="h-4 w-4 accent-[hsl(var(--primary))]"
+                />
+                <Timer className="h-4 w-4 text-muted-foreground" /> Gravar banco de horas
+              </label>
+              <p className="mt-2 text-[11px] text-muted-foreground">
+                A jornada semanal e dividida pelos dias uteis para achar a carga diaria. Diferencas
+                maiores que a tolerancia contam como extra ou atraso.
+              </p>
             </div>
 
             <div className="flex justify-end gap-2 pt-3">

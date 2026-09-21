@@ -1,5 +1,6 @@
 import type { TipoContrato } from './types'
 import type { TabelaLegal } from './tabelas'
+import { formatDuracao, valorEmReais, type JornadaSnapshot } from './jornada'
 
 export interface ColaboradorFolha {
   id: string
@@ -28,6 +29,14 @@ export interface EntradaFolha {
   adiantamentos?: number
   /** Descontos definidos pelo contador */
   descontosInformados?: number
+  /** Minutos de atraso apurados no ponto na competencia */
+  atrasoMinutos?: number
+  /** Valor da hora para converter o atraso em reais */
+  valorHora?: number
+  /** O gestor optou por lancar os descontos de ponto (atrasos) */
+  descontarAtrasos?: boolean
+  /** Snapshot da jornada apurada, exibido no detalhe/holerite */
+  jornada?: JornadaSnapshot
 }
 
 export interface Verba {
@@ -55,6 +64,8 @@ export interface ResultadoFolha {
   valorFGTS: number
   valorLiquido: number
   custoTotal: number
+  /** Jornada apurada no ponto, quando disponivel */
+  jornada?: JornadaSnapshot
 }
 
 /** INSS progressivo do empregado (faixa a faixa). */
@@ -152,6 +163,18 @@ export function calcularFolha(entrada: EntradaFolha): ResultadoFolha {
     descontos.push({ descricao: 'Descontos', valor: round2(descontoContador) })
   }
 
+  const atrasoMinutos = Number(entrada.atrasoMinutos ?? 0)
+  if (entrada.descontarAtrasos && atrasoMinutos > 0) {
+    const valorAtraso = valorEmReais(atrasoMinutos, Number(entrada.valorHora ?? 0))
+    if (valorAtraso > 0) {
+      descontos.push({
+        descricao: 'Atrasos',
+        referencia: formatDuracao(atrasoMinutos),
+        valor: valorAtraso,
+      })
+    }
+  }
+
   const totalProventos = round2(proventos.reduce((s, v) => s + v.valor, 0))
   const totalDescontos = round2(descontos.reduce((s, v) => s + v.valor, 0))
   const valorLiquido = round2(totalProventos - totalDescontos)
@@ -175,6 +198,7 @@ export function calcularFolha(entrada: EntradaFolha): ResultadoFolha {
     valorFGTS: 0,
     valorLiquido,
     custoTotal: totalProventos,
+    jornada: entrada.jornada,
   }
 }
 

@@ -89,6 +89,14 @@ export interface Obra {
   ativo: boolean
   exigir_foto?: boolean
   exigir_face?: boolean
+  /** Horas semanais de referencia para o calculo de extras/atrasos (padrao 44). */
+  horas_semanais?: number | null
+  /** Dias uteis usados para distribuir a jornada semanal (padrao 5). */
+  dias_uteis?: number | null
+  /** Tolerancia diaria em minutos antes de contar extra/atraso (padrao 10). */
+  tolerancia_minutos?: number | null
+  /** Quando ativo, o saldo do periodo e gravado como banco de horas. */
+  banco_horas?: boolean | null
   empresa_id?: string | null
   criado_em?: string
 }

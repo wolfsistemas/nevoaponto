@@ -1,7 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BadgeDollarSign, FileText, Lock, Pencil, Printer, Receipt, RotateCcw, Wallet } from 'lucide-react'
+import {
+  BadgeDollarSign,
+  Clock,
+  FileText,
+  Lock,
+  Pencil,
+  Printer,
+  Receipt,
+  RotateCcw,
+  Wallet,
+} from 'lucide-react'
 import { api, type ApuracaoCompetencia } from '@/data/api'
 import type { ResultadoFolha } from '@/core/folha'
+import { formatDuracao } from '@/core/jornada'
 import type { TipoContrato } from '@/core/types'
 import { useAuth } from '@/features/auth/AuthContext'
 import { useAppData } from '@/data/useAppData'
@@ -13,7 +24,8 @@ import { Dialog } from '@/components/ui/dialog'
 import { Table, TableWrap, Td, Th } from '@/components/ui/table'
 import { useToast } from '@/components/ui/toast'
 import { formatMoney, formatCnpj, competenciaLabel } from '@/lib/format'
-import type { Empresa, FolhaItem } from '@/data/types'
+import type { Colaborador, Empresa, FolhaItem } from '@/data/types'
+import { JornadaDialog } from './JornadaDialog'
 
 function competenciasDisponiveis(): string[] {
   const out: string[] = []
@@ -40,12 +52,13 @@ interface LancamentoState {
   outrosProventos: string
   adiantamentos: string
   descontos: string
+  descontarAtrasos: boolean
 }
 
 export function FolhaPage() {
   const toast = useToast()
   const { user } = useAuth()
-  const { colaboradores, pontos, fechamentos } = useAppData()
+  const { colaboradores, pontos, fechamentos, obras } = useAppData()
   const somenteEu = user?.role === 'funcionario'
   const podeEstornar = user?.role === 'admin'
   const [competencia, setCompetencia] = useState(competenciaAtual())
@@ -57,6 +70,7 @@ export function FolhaPage() {
   const [empresa, setEmpresa] = useState<Empresa | null>(null)
   const [lancamento, setLancamento] = useState<LancamentoState | null>(null)
   const [salvandoLancamento, setSalvandoLancamento] = useState(false)
+  const [jornadaColaborador, setJornadaColaborador] = useState<Colaborador | null>(null)
   const [manuais, setManuais] = useState<Map<string, LancamentoState>>(new Map())
   const [itensSalvos, setItensSalvos] = useState<FolhaItem[]>([])
 
@@ -108,6 +122,10 @@ export function FolhaPage() {
     )
   }, [itensSalvos, fechamentos, competencia])
 
+  const jornadaLancamento = lancamento
+    ? itens.find((i) => i.colaborador_id === lancamento.colaboradorId)?.jornada
+    : undefined
+
   async function apurar() {
     setCarregando(true)
     try {
@@ -119,7 +137,7 @@ export function FolhaPage() {
       setItensSalvos(lancados)
       const mapa = new Map<string, LancamentoState>()
       for (const f of lancados) {
-        const manual = (f.detalhe as { manual?: Record<string, number> } | null)?.manual
+        const manual = (f.detalhe as { manual?: Record<string, number | boolean> } | null)?.manual
         const colab = colaboradores.find((c) => c.id === f.colaborador_id)
         if (!colab) continue
         mapa.set(f.colaborador_id, {
@@ -132,6 +150,7 @@ export function FolhaPage() {
           outrosProventos: manual?.outrosProventos ? String(manual.outrosProventos) : '',
           adiantamentos: manual?.adiantamentos ? String(manual.adiantamentos) : '',
           descontos: manual?.descontosInformados ? String(manual.descontosInformados) : '',
+          descontarAtrasos: Boolean(manual?.descontarAtrasos),
         })
       }
       setManuais(mapa)
@@ -199,8 +218,14 @@ export function FolhaPage() {
         outrosProventos: '',
         adiantamentos: '',
         descontos: '',
+        descontarAtrasos: false,
       },
     )
+  }
+
+  function abrirJornada(item: ResultadoFolha) {
+    const c = colaboradores.find((x) => x.id === item.colaborador_id)
+    if (c) setJornadaColaborador(c)
   }
 
   function mudarPercentual(valor: string) {
@@ -235,6 +260,7 @@ export function FolhaPage() {
         outrosProventos: lancamento.outrosProventos ? Number(lancamento.outrosProventos) : undefined,
         adiantamentos: lancamento.adiantamentos ? Number(lancamento.adiantamentos) : undefined,
         descontosInformados: lancamento.descontos ? Number(lancamento.descontos) : undefined,
+        descontarAtrasos: lancamento.descontarAtrasos,
       })
       toast.push('Folha lancada e salva.', 'sucesso')
       setLancamento(null)
@@ -343,32 +369,49 @@ export function FolhaPage() {
         acao={
           <>
             {fechada ? (
-              <Badge variant="success" className="gap-1">
+              <Badge variant="success" className="shrink-0 gap-1 whitespace-nowrap">
                 <Lock className="h-3 w-3" /> Fechada
               </Badge>
             ) : (
-              <Badge variant="secondary">Aberta</Badge>
+              <Badge variant="secondary" className="shrink-0 whitespace-nowrap">
+                Aberta
+              </Badge>
             )}
-            <Select value={competencia} onChange={(e) => setCompetencia(e.target.value)} className="w-[190px]">
+            <Select
+              value={competencia}
+              onChange={(e) => setCompetencia(e.target.value)}
+              className="w-[190px] shrink-0"
+            >
               {opcoes.map((c) => (
                 <option key={c} value={c}>
                   {competenciaLabel(c)}
                 </option>
               ))}
             </Select>
-            <Button variant="outline" onClick={apurar} disabled={carregando}>
+            <Button
+              variant="outline"
+              onClick={apurar}
+              disabled={carregando}
+              className="shrink-0 whitespace-nowrap"
+            >
               {carregando ? 'Apurando...' : 'Apurar'}
             </Button>
             {!somenteEu && (
               <Button
                 onClick={fechar}
                 disabled={fechando || fechada || !apuracao || itens.length === 0}
+                className="shrink-0 whitespace-nowrap"
               >
                 <Receipt className="h-4 w-4" /> Fechar folha
               </Button>
             )}
             {podeEstornar && fechada && (
-              <Button variant="destructive" onClick={estornar} disabled={estornando}>
+              <Button
+                variant="destructive"
+                onClick={estornar}
+                disabled={estornando}
+                className="shrink-0 whitespace-nowrap"
+              >
                 <RotateCcw className="h-4 w-4" /> {estornando ? 'Estornando...' : 'Estornar'}
               </Button>
             )}
@@ -448,6 +491,14 @@ export function FolhaPage() {
                             Lancar
                           </Button>
                         )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => abrirJornada(i)}
+                          title="Ver todas as batidas e o calculo de horas"
+                        >
+                          <Clock className="h-3.5 w-3.5" /> Ponto
+                        </Button>
                         <Button size="sm" variant="outline" onClick={() => setDetalhe(i)}>
                           <FileText className="h-3.5 w-3.5" /> Holerite
                         </Button>
@@ -561,6 +612,34 @@ export function FolhaPage() {
                 onChange={(e) => setLancamento({ ...lancamento, descontos: e.target.value })}
               />
             </Field>
+
+            {jornadaLancamento && jornadaLancamento.atrasoMin > 0 && (
+              <div className="rounded-xl border border-warning/40 bg-warning/10 p-3">
+                <label className="flex items-center gap-2 text-sm font-semibold">
+                  <input
+                    type="checkbox"
+                    checked={lancamento.descontarAtrasos}
+                    onChange={(e) =>
+                      setLancamento({ ...lancamento, descontarAtrasos: e.target.checked })
+                    }
+                    className="h-4 w-4 accent-[hsl(var(--primary))]"
+                  />
+                  Lancar descontos de pontos se houver?
+                </label>
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  Atraso apurado no ponto: <strong>{formatDuracao(jornadaLancamento.atrasoMin)}</strong>
+                  {jornadaLancamento.valorHora > 0 && (
+                    <>
+                      {' '}
+                      = <strong>{formatMoney(jornadaLancamento.valorAtraso)}</strong> (valor da hora{' '}
+                      {formatMoney(jornadaLancamento.valorHora)})
+                    </>
+                  )}
+                  . Se marcado, o valor entra como desconto no holerite.
+                </p>
+              </div>
+            )}
+
             <p className="text-xs text-muted-foreground">
               O sistema nao calcula INSS, IRRF ou FGTS. Informe apenas o valor descontado. O holerite
               e os dados ficam registrados na competencia.
@@ -577,6 +656,15 @@ export function FolhaPage() {
           </div>
         )}
       </Dialog>
+
+      <JornadaDialog
+        open={Boolean(jornadaColaborador)}
+        onClose={() => setJornadaColaborador(null)}
+        colaborador={jornadaColaborador}
+        pontos={pontos}
+        obras={obras}
+        competencia={competencia}
+      />
     </div>
   )
 }
