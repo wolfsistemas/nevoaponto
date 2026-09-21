@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BadgeDollarSign, FileText, Pencil, Printer, Receipt, Wallet } from 'lucide-react'
+import { BadgeDollarSign, FileText, Lock, Pencil, Printer, Receipt, RotateCcw, Wallet } from 'lucide-react'
 import { api, type ApuracaoCompetencia } from '@/data/api'
 import type { ResultadoFolha } from '@/core/folha'
 import type { TipoContrato } from '@/core/types'
@@ -13,7 +13,7 @@ import { Dialog } from '@/components/ui/dialog'
 import { Table, TableWrap, Td, Th } from '@/components/ui/table'
 import { useToast } from '@/components/ui/toast'
 import { formatMoney, formatCnpj, competenciaLabel } from '@/lib/format'
-import type { Empresa } from '@/data/types'
+import type { Empresa, FolhaItem } from '@/data/types'
 
 function competenciasDisponiveis(): string[] {
   const out: string[] = []
@@ -45,17 +45,20 @@ interface LancamentoState {
 export function FolhaPage() {
   const toast = useToast()
   const { user } = useAuth()
-  const { colaboradores, pontos } = useAppData()
+  const { colaboradores, pontos, fechamentos } = useAppData()
   const somenteEu = user?.role === 'funcionario'
+  const podeEstornar = user?.role === 'admin'
   const [competencia, setCompetencia] = useState(competenciaAtual())
   const [apuracao, setApuracao] = useState<ApuracaoCompetencia | null>(null)
   const [carregando, setCarregando] = useState(false)
   const [fechando, setFechando] = useState(false)
+  const [estornando, setEstornando] = useState(false)
   const [detalhe, setDetalhe] = useState<ResultadoFolha | null>(null)
   const [empresa, setEmpresa] = useState<Empresa | null>(null)
   const [lancamento, setLancamento] = useState<LancamentoState | null>(null)
   const [salvandoLancamento, setSalvandoLancamento] = useState(false)
   const [manuais, setManuais] = useState<Map<string, LancamentoState>>(new Map())
+  const [itensSalvos, setItensSalvos] = useState<FolhaItem[]>([])
 
   useEffect(() => {
     if (api.modo === 'local') return
@@ -97,6 +100,14 @@ export function FolhaPage() {
     [itens],
   )
 
+  // Competencia fechada: itens congelados ou fechamentos gerados (nao estornados).
+  const fechada = useMemo(() => {
+    if (itensSalvos.some((f) => f.status !== 'ABERTO')) return true
+    return fechamentos.some(
+      (f) => f.periodo_inicio.startsWith(`${competencia}-`) && f.status !== 'ESTORNADO',
+    )
+  }, [itensSalvos, fechamentos, competencia])
+
   async function apurar() {
     setCarregando(true)
     try {
@@ -105,6 +116,7 @@ export function FolhaPage() {
         api.listFolhaItens(competencia),
       ])
       setApuracao(res)
+      setItensSalvos(lancados)
       const mapa = new Map<string, LancamentoState>()
       for (const f of lancados) {
         const manual = (f.detalhe as { manual?: Record<string, number> } | null)?.manual
@@ -147,6 +159,28 @@ export function FolhaPage() {
       toast.push('Erro ao fechar folha.', 'erro')
     } finally {
       setFechando(false)
+    }
+  }
+
+  async function estornar() {
+    const msg =
+      `Estornar a folha de ${competenciaLabel(competencia)}?\n\n` +
+      'Isso remove os lancamentos financeiros gerados, marca os fechamentos como ' +
+      'estornados, reabre a competencia para edicao e libera os pontos.\n\n' +
+      'Esta acao nao pode ser desfeita.'
+    if (!confirm(msg)) return
+    setEstornando(true)
+    try {
+      const r = await api.estornarFolha(competencia)
+      toast.push(
+        `Folha estornada. ${r.lancamentos} lancamento(s) removido(s) e ${r.fechamentos} fechamento(s) estornado(s).`,
+        'sucesso',
+      )
+      await apurar()
+    } catch {
+      toast.push('Erro ao estornar a folha.', 'erro')
+    } finally {
+      setEstornando(false)
     }
   }
 
@@ -308,6 +342,13 @@ export function FolhaPage() {
         icon={Wallet}
         acao={
           <>
+            {fechada ? (
+              <Badge variant="success" className="gap-1">
+                <Lock className="h-3 w-3" /> Fechada
+              </Badge>
+            ) : (
+              <Badge variant="secondary">Aberta</Badge>
+            )}
             <Select value={competencia} onChange={(e) => setCompetencia(e.target.value)} className="w-[190px]">
               {opcoes.map((c) => (
                 <option key={c} value={c}>
@@ -319,13 +360,33 @@ export function FolhaPage() {
               {carregando ? 'Apurando...' : 'Apurar'}
             </Button>
             {!somenteEu && (
-              <Button onClick={fechar} disabled={fechando || !apuracao || itens.length === 0}>
+              <Button
+                onClick={fechar}
+                disabled={fechando || fechada || !apuracao || itens.length === 0}
+              >
                 <Receipt className="h-4 w-4" /> Fechar folha
+              </Button>
+            )}
+            {podeEstornar && fechada && (
+              <Button variant="destructive" onClick={estornar} disabled={estornando}>
+                <RotateCcw className="h-4 w-4" /> {estornando ? 'Estornando...' : 'Estornar'}
               </Button>
             )}
           </>
         }
       />
+
+      {fechada && (
+        <div className="mb-4 flex items-start gap-3 rounded-xl border border-success/30 bg-success/10 p-3 text-sm">
+          <Lock className="mt-0.5 h-4 w-4 shrink-0 text-success" />
+          <p>
+            <strong>Competencia fechada.</strong> Os lancamentos e descontos ficam bloqueados para
+            edicao. A impressao do holerite continua liberada. Para alterar, use{' '}
+            <strong>Estornar</strong> (o que reabre a competencia e remove os lancamentos
+            financeiros gerados).
+          </p>
+        </div>
+      )}
 
       <div className={somenteEu ? 'grid gap-4 sm:grid-cols-3' : 'grid gap-4 sm:grid-cols-3'}>
         <StatCard titulo="Proventos" valor={formatMoney(totais.proventos)} icon={BadgeDollarSign} />
@@ -372,8 +433,19 @@ export function FolhaPage() {
                     <Td className="text-right">
                       <div className="flex justify-end gap-1.5">
                         {!somenteEu && (
-                          <Button size="sm" variant="outline" onClick={() => abrirLancamento(i)}>
-                            <Pencil className="h-3.5 w-3.5" /> Lancar
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => abrirLancamento(i)}
+                            disabled={fechada}
+                            title={fechada ? 'Competencia fechada. Estorne para editar.' : undefined}
+                          >
+                            {fechada ? (
+                              <Lock className="h-3.5 w-3.5" />
+                            ) : (
+                              <Pencil className="h-3.5 w-3.5" />
+                            )}{' '}
+                            Lancar
                           </Button>
                         )}
                         <Button size="sm" variant="outline" onClick={() => setDetalhe(i)}>

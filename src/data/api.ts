@@ -598,6 +598,11 @@ const apiBase = {
    * desconto e informado pelo contador (sem calculo automatico de INSS/IRRF).
    */
   async salvarFolhaItem(input: LancamentoFolhaInput): Promise<FolhaItem> {
+    const existentes = await api.listFolhaItens(input.competencia)
+    if (existentes.some((f) => f.status !== 'ABERTO')) {
+      throw new Error('Esta competencia esta fechada. Estorne a folha antes de editar.')
+    }
+
     const colaboradores = await api.listColaboradores()
     const c = colaboradores.find((x) => x.id === input.colaborador_id)
     if (!c) throw new Error('Colaborador nao encontrado.')
@@ -718,33 +723,55 @@ const apiBase = {
     }
   },
 
-  /** Fecha a folha, marcando pontos/producao e gerando lancamentos financeiros. */
+  /**
+   * Fecha a folha da competencia: gera os lancamentos financeiros e os
+   * fechamentos, libera os pontos e congela os itens da folha como FECHADO.
+   */
   async fecharFolha(apuracao: ApuracaoCompetencia): Promise<number> {
-    const [colaboradores, pontos, fechamentos] = await Promise.all([
+    const competencia = apuracao.competencia
+    const [colaboradores, pontos, fechamentos, folhaItens] = await Promise.all([
       api.listColaboradores(),
       api.listPontos(),
       api.listFechamentos(),
+      api.listFolhaItens(competencia),
     ])
+    const manualPorColaborador = new Map(
+      folhaItens.map((f) => [
+        f.colaborador_id,
+        (f.detalhe as { manual?: Record<string, number> } | null)?.manual,
+      ]),
+    )
     let lancamentos = 0
 
+    const diariasDoColaborador = (colaboradorId: string) =>
+      calcularTotalDiarias(
+        pontos.filter(
+          (p) =>
+            p.colaborador_id === colaboradorId &&
+            p.status === 'VALIDADO' &&
+            competenciaDe(p.hora_registro) === competencia,
+        ),
+      )
+
     for (const item of apuracao.itens) {
-      if (item.totalProventos <= 0) continue
+      if (item.totalProventos <= 0 && item.valorLiquido <= 0) continue
       const c = colaboradores.find((x) => x.id === item.colaborador_id)
       if (!c) continue
 
       // Idempotencia: nao gera pagamento duplicado para a mesma competencia.
+      // Fechamentos estornados podem ser refeitos.
       const jaFechado = fechamentos.some(
         (f) =>
           f.colaborador_id === c.id &&
-          (f.periodo_inicio ?? '').startsWith(apuracao.competencia),
+          (f.periodo_inicio ?? '').startsWith(competencia) &&
+          f.status !== 'ESTORNADO',
       )
       if (jaFechado) continue
 
-      // Somente pontos validados e ainda nao pagos entram no fechamento.
       const pontosColab = pontos.filter(
         (p) =>
           p.colaborador_id === c.id &&
-          competenciaDe(p.hora_registro) === apuracao.competencia &&
+          competenciaDe(p.hora_registro) === competencia &&
           p.status === 'VALIDADO' &&
           !p.pago_em_fechamento,
       )
@@ -752,13 +779,15 @@ const apiBase = {
       // Lancamento financeiro da mao de obra liquida
       await api.createLancamento({
         obra_id: c.obra_id ?? null,
+        colaborador_id: c.id,
+        competencia,
         tipo: 'DESPESA',
         categoria: 'Mao de Obra',
-        descricao: `Folha ${apuracao.competencia} - ${c.nome}`,
+        descricao: `Folha ${competencia} - ${c.nome}`,
         valor: item.valorLiquido,
         data: new Date().toISOString(),
         status: 'PENDENTE',
-        referencia: `folha:${apuracao.competencia}`,
+        referencia: `folha:${competencia}`,
       })
       lancamentos += 1
 
@@ -771,8 +800,8 @@ const apiBase = {
       await api.upsertFechamento({
         colaborador_id: c.id,
         obra_id: c.obra_id ?? null,
-        periodo_inicio: `${apuracao.competencia}-01`,
-        periodo_fim: competenciaFim(apuracao.competencia),
+        periodo_inicio: `${competencia}-01`,
+        periodo_fim: competenciaFim(competencia),
         total_diarias: calcularTotalDiarias(pontosColab),
         valor_diaria: c.valor_diaria ?? 0,
         valor_bruto: item.totalProventos,
@@ -780,10 +809,109 @@ const apiBase = {
         total_encargos: item.totalEncargos,
         valor_liquido: item.valorLiquido,
         status: 'FECHADO',
-        observacao: `Competencia ${apuracao.competencia}`,
+        observacao: `Competencia ${competencia}`,
       })
     }
+
+    // Congela a competencia: todos os itens passam a FECHADO (o holerite
+    // continua disponivel, mas o lancamento so libera apos estorno).
+    const snapshot: Omit<FolhaItem, 'id'>[] = apuracao.itens.map((item) => ({
+      competencia,
+      colaborador_id: item.colaborador_id,
+      total_diarias: diariasDoColaborador(item.colaborador_id),
+      total_metros: 0,
+      total_proventos: item.totalProventos,
+      total_descontos: item.totalDescontos,
+      total_encargos: item.totalEncargos,
+      valor_liquido: item.valorLiquido,
+      status: 'FECHADO',
+      detalhe: { resultado: item, manual: manualPorColaborador.get(item.colaborador_id) },
+    }))
+
+    if (isSupabaseConfigured) {
+      const { error } = await getSupabase()
+        .from('folha_itens')
+        .upsert(snapshot, { onConflict: 'competencia,colaborador_id' })
+      if (error) throw error
+    } else {
+      for (const item of snapshot) {
+        local.upsertFolhaItem({
+          id: `${competencia}:${item.colaborador_id}`,
+          ...item,
+        })
+      }
+    }
+
     return lancamentos
+  },
+
+  /**
+   * Estorna (reabre) uma competencia fechada em cadeia: remove os lancamentos
+   * financeiros gerados pela folha, marca os fechamentos como ESTORNADOS,
+   * reabre os itens da folha e libera os pontos para um novo fechamento.
+   */
+  async estornarFolha(competencia: string): Promise<{ lancamentos: number; fechamentos: number }> {
+    const referencia = `folha:${competencia}`
+
+    if (isSupabaseConfigured) {
+      const sb = getSupabase()
+
+      const { data: lanc, error: e1 } = await sb
+        .from('lancamentos')
+        .delete()
+        .eq('referencia', referencia)
+        .select('id')
+      if (e1) throw e1
+
+      const { data: fech, error: e2 } = await sb
+        .from('fechamentos')
+        .update({ status: 'ESTORNADO', data_pagamento: null })
+        .like('periodo_inicio', `${competencia}-%`)
+        .neq('status', 'ESTORNADO')
+        .select('id')
+      if (e2) throw e2
+
+      const { error: e3 } = await sb
+        .from('folha_itens')
+        .update({ status: 'ABERTO' })
+        .eq('competencia', competencia)
+      if (e3) throw e3
+
+      const { error: e4 } = await sb
+        .from('pontos')
+        .update({ pago_em_fechamento: false })
+        .eq('status', 'VALIDADO')
+        .gte('hora_registro', `${competencia}-01T00:00:00.000Z`)
+        .lte('hora_registro', `${competenciaFim(competencia)}T23:59:59.999Z`)
+      if (e4) throw e4
+
+      return { lancamentos: lanc?.length ?? 0, fechamentos: fech?.length ?? 0 }
+    }
+
+    const lancamentos = local.listLancamentos().filter((l) => l.referencia === referencia)
+    const fechamentos = local
+      .listFechamentos()
+      .filter((f) => f.periodo_inicio.startsWith(`${competencia}-`) && f.status !== 'ESTORNADO')
+
+    localStore.mutate((db) => {
+      db.lancamentos = db.lancamentos.filter((l) => l.referencia !== referencia)
+      db.fechamentos.forEach((f) => {
+        if (f.periodo_inicio.startsWith(`${competencia}-`) && f.status !== 'ESTORNADO') {
+          f.status = 'ESTORNADO'
+          f.data_pagamento = null
+        }
+      })
+      db.folhaItens.forEach((f) => {
+        if (f.competencia === competencia) f.status = 'ABERTO'
+      })
+      db.pontos.forEach((p) => {
+        if (p.status === 'VALIDADO' && competenciaDe(p.hora_registro) === competencia) {
+          p.pago_em_fechamento = false
+        }
+      })
+    })
+
+    return { lancamentos: lancamentos.length, fechamentos: fechamentos.length }
   },
 
   resetDemo(): void {
@@ -814,6 +942,7 @@ const METODOS_DE_ESCRITA = new Set<string>([
   'criarAssinatura',
   'cancelarAssinatura',
   'fecharFolha',
+  'estornarFolha',
   'salvarFolhaItem',
   'resetDemo',
 ])

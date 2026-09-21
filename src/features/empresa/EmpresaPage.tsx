@@ -21,6 +21,7 @@ export function EmpresaPage() {
     cnpj: '',
     email_contato: '',
     telefone: '',
+    cidade: '',
     logo_url: '',
   })
 
@@ -39,6 +40,7 @@ export function EmpresaPage() {
             cnpj: formatCnpj(e.cnpj) || '',
             email_contato: e.email_contato ?? '',
             telefone: e.telefone ?? '',
+            cidade: e.cidade ?? '',
             logo_url: e.logo_url ?? '',
           })
         }
@@ -75,6 +77,7 @@ export function EmpresaPage() {
         cnpj: onlyDigits(form.cnpj) || null,
         email_contato: form.email_contato.trim() || null,
         telefone: form.telefone.trim() || null,
+        cidade: form.cidade.trim() || null,
         logo_url: form.logo_url || null,
       })
       setEmpresa(atualizada)
@@ -189,6 +192,13 @@ export function EmpresaPage() {
                   type="email"
                   value={form.email_contato}
                   onChange={(e) => setForm((f) => ({ ...f, email_contato: e.target.value }))}
+                />
+              </Field>
+              <Field label="Cidade (exibida no PIX)">
+                <Input
+                  value={form.cidade}
+                  onChange={(e) => setForm((f) => ({ ...f, cidade: e.target.value }))}
+                  placeholder="Ex.: Sao Paulo"
                 />
               </Field>
 

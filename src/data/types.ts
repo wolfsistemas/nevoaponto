@@ -8,6 +8,7 @@ export interface Empresa {
   cnpj?: string | null
   email_contato?: string | null
   telefone?: string | null
+  cidade?: string | null
   plano: string
   status: 'trial' | 'ativo' | 'suspenso' | 'cancelado'
   trial_ate?: string | null
@@ -160,6 +161,8 @@ export interface Fechamento {
 export interface LancamentoFinanceiro {
   id: string
   obra_id?: string | null
+  colaborador_id?: string | null
+  competencia?: string | null
   tipo: 'RECEITA' | 'DESPESA'
   categoria: string
   descricao: string
