@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from '@/features/auth/AuthContext'
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { ToastProvider } from '@/components/ui/toast'
+import { ConfirmProvider } from '@/components/ui/confirm'
 import { ThemeProvider } from '@/lib/theme'
 import { LoginPage } from '@/features/auth/LoginPage'
 import { SignupPage } from '@/features/auth/SignupPage'
@@ -49,7 +50,8 @@ export default function App() {
   return (
     <ThemeProvider>
       <ToastProvider>
-        <AuthProvider>
+        <ConfirmProvider>
+          <AuthProvider>
           <HashRouter>
             <Routes>
               <Route path={ROUTES.home} element={<LandingPage />} />
@@ -145,6 +147,7 @@ export default function App() {
             </Routes>
           </HashRouter>
         </AuthProvider>
+        </ConfirmProvider>
       </ToastProvider>
     </ThemeProvider>
   )

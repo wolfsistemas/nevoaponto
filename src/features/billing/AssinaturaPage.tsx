@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableWrap, Td, Th } from '@/components/ui/table'
 import { useToast } from '@/components/ui/toast'
+import { useConfirm } from '@/components/ui/confirm'
 import { formatDate, formatMoney } from '@/lib/format'
 import { isSupabaseConfigured } from '@/lib/supabase'
 
@@ -31,6 +32,7 @@ function diasRestantes(trialAte?: string | null): number | null {
 export function AssinaturaPage() {
   const { user } = useAuth()
   const toast = useToast()
+  const confirm = useConfirm()
   const [planos, setPlanos] = useState<Plano[]>([])
   const [empresa, setEmpresa] = useState<Empresa | null>(null)
   const [assinatura, setAssinatura] = useState<Assinatura | null>(null)
@@ -92,7 +94,15 @@ export function AssinaturaPage() {
   }
 
   async function cancelar() {
-    if (!confirm('Cancelar a assinatura? O acesso permanece ate o fim do periodo ja pago.')) return
+    const ok = await confirm({
+      title: 'Cancelar assinatura?',
+      description:
+        'A cobranca sera interrompida. O acesso permanece ativo ate o fim do periodo ja pago.',
+      confirmLabel: 'Cancelar assinatura',
+      cancelLabel: 'Voltar',
+      tom: 'warning',
+    })
+    if (!ok) return
     setProcessando('cancelar')
     try {
       await api.cancelarAssinatura()

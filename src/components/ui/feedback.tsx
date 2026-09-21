@@ -16,7 +16,7 @@ export function PageHeader({
 }) {
   return (
     <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex items-center gap-3">
+      <div className="flex min-w-0 items-center gap-3">
         {Icon && (
           <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/12 text-primary">
             <Icon className="h-5 w-5" />
@@ -27,7 +27,11 @@ export function PageHeader({
           {descricao && <p className="text-sm text-muted-foreground">{descricao}</p>}
         </div>
       </div>
-      {acao && <div className="flex flex-wrap items-center gap-2">{acao}</div>}
+      {acao && (
+        <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-0.5 sm:justify-end">
+          {acao}
+        </div>
+      )}
     </div>
   )
 }

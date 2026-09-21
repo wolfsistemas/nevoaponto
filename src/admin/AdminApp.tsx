@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from '@/features/auth/AuthContext'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { SuperAdminPage } from '@/features/superadmin/SuperAdminPage'
 import { ToastProvider } from '@/components/ui/toast'
+import { ConfirmProvider } from '@/components/ui/confirm'
 import { ThemeProvider } from '@/lib/theme'
 import { Button } from '@/components/ui/button'
 import { ROUTES } from '@/lib/brand'
@@ -70,9 +71,11 @@ export function AdminApp() {
   return (
     <ThemeProvider>
       <ToastProvider>
-        <AuthProvider>
-          <PortalAdmin />
-        </AuthProvider>
+        <ConfirmProvider>
+          <AuthProvider>
+            <PortalAdmin />
+          </AuthProvider>
+        </ConfirmProvider>
       </ToastProvider>
     </ThemeProvider>
   )

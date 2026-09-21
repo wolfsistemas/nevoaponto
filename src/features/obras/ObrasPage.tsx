@@ -10,6 +10,7 @@ import { Field, Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Dialog } from '@/components/ui/dialog'
 import { useToast } from '@/components/ui/toast'
+import { useConfirm } from '@/components/ui/confirm'
 import { ObraQrDialog } from './ObraQrDialog'
 
 type FormState = Partial<Obra> & { nome: string }
@@ -17,6 +18,7 @@ type FormState = Partial<Obra> & { nome: string }
 export function ObrasPage() {
   const { obras, colaboradores } = useAppData()
   const toast = useToast()
+  const confirm = useConfirm()
   const [form, setForm] = useState<FormState | null>(null)
   const [qrObra, setQrObra] = useState<Obra | null>(null)
   const [salvando, setSalvando] = useState(false)
@@ -71,7 +73,20 @@ export function ObrasPage() {
   }
 
   async function remover(o: Obra) {
-    if (!confirm(`Remover o local "${o.nome}"?`)) return
+    const total = colaboradores.filter((c) => c.obra_id === o.id).length
+    const ok = await confirm({
+      title: `Remover "${o.nome}"?`,
+      description:
+        `Este local sera removido permanentemente.` +
+        (total > 0
+          ? `\n\nAtencao: ${total} colaborador${total === 1 ? '' : 'es'} esta${
+              total === 1 ? '' : 'o'
+            } vinculado${total === 1 ? '' : 's'} a este local.`
+          : ''),
+      confirmLabel: 'Remover',
+      tom: 'danger',
+    })
+    if (!ok) return
     await api.removeObra(o.id)
     toast.push('Local removido.', 'info')
   }

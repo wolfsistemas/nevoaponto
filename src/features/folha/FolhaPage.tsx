@@ -23,6 +23,7 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog } from '@/components/ui/dialog'
 import { Table, TableWrap, Td, Th } from '@/components/ui/table'
 import { useToast } from '@/components/ui/toast'
+import { useConfirm } from '@/components/ui/confirm'
 import { formatMoney, formatCnpj, competenciaLabel } from '@/lib/format'
 import type { Colaborador, Empresa, FolhaItem } from '@/data/types'
 import { JornadaDialog } from './JornadaDialog'
@@ -57,6 +58,7 @@ interface LancamentoState {
 
 export function FolhaPage() {
   const toast = useToast()
+  const confirm = useConfirm()
   const { user } = useAuth()
   const { colaboradores, pontos, fechamentos, obras } = useAppData()
   const somenteEu = user?.role === 'funcionario'
@@ -168,7 +170,15 @@ export function FolhaPage() {
 
   async function fechar() {
     if (!apuracao) return
-    if (!confirm(`Fechar a folha de ${competenciaLabel(competencia)} e gerar os lancamentos financeiros?`)) return
+    const ok = await confirm({
+      title: 'Fechar folha?',
+      description: `Vamos fechar a folha de ${competenciaLabel(
+        competencia,
+      )} e gerar os lancamentos financeiros. A competencia ficara bloqueada para edicao.`,
+      confirmLabel: 'Fechar folha',
+      tom: 'question',
+    })
+    if (!ok) return
     setFechando(true)
     try {
       const n = await api.fecharFolha(apuracao)
@@ -182,12 +192,16 @@ export function FolhaPage() {
   }
 
   async function estornar() {
-    const msg =
-      `Estornar a folha de ${competenciaLabel(competencia)}?\n\n` +
-      'Isso remove os lancamentos financeiros gerados, marca os fechamentos como ' +
-      'estornados, reabre a competencia para edicao e libera os pontos.\n\n' +
-      'Esta acao nao pode ser desfeita.'
-    if (!confirm(msg)) return
+    const ok = await confirm({
+      title: 'Estornar folha?',
+      description:
+        `Isso remove os lancamentos financeiros de ${competenciaLabel(competencia)}, ` +
+        'marca os fechamentos como estornados, reabre a competencia para edicao e libera os pontos.\n\n' +
+        'Esta acao nao pode ser desfeita.',
+      confirmLabel: 'Estornar',
+      tom: 'danger',
+    })
+    if (!ok) return
     setEstornando(true)
     try {
       const r = await api.estornarFolha(competencia)
