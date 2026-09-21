@@ -51,7 +51,7 @@ export function ObraQrDialog({
     if (!dataUrl || !obra) return
     const a = document.createElement('a')
     a.href = dataUrl
-    a.download = `qr-obra-${obra.nome.replace(/\s+/g, '-').toLowerCase()}.png`
+    a.download = `qr-local-${obra.nome.replace(/\s+/g, '-').toLowerCase()}.png`
     a.click()
   }
 
@@ -59,13 +59,13 @@ export function ObraQrDialog({
     <Dialog
       open={open}
       onClose={onClose}
-      title="QR Code da obra"
-      description="Fixe na entrada da obra para o colaborador abrir o ponto direto."
+      title="QR Code do local"
+      description="Fixe na entrada do local para o colaborador abrir o ponto direto."
     >
       <div className="flex flex-col items-center gap-4">
         <div className="rounded-2xl border border-border bg-white p-4">
           {dataUrl ? (
-            <img src={dataUrl} alt={`QR Code da obra ${obra?.nome ?? ''}`} className="h-56 w-56" />
+            <img src={dataUrl} alt={`QR Code do local ${obra?.nome ?? ''}`} className="h-56 w-56" />
           ) : (
             <div className="flex h-56 w-56 items-center justify-center text-muted-foreground">
               <QrCode className="h-10 w-10" />

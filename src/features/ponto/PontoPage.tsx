@@ -24,6 +24,9 @@ export function PontoPage() {
   const toast = useToast()
 
   const podeEscolher = user?.role === 'admin' || user?.role === 'encarregado'
+  // Somente o admin pode registrar ponto de qualquer pessoa e de qualquer
+  // lugar, ignorando a validacao de localizacao (fica marcado como manual).
+  const podeIgnorarLocal = user?.role === 'admin'
   const [searchParams] = useSearchParams()
   const [colaboradorId, setColaboradorId] = useState<string>('')
   const [obraId, setObraId] = useState<string>('')
@@ -114,22 +117,23 @@ export function PontoPage() {
     return 'ENTRADA'
   }, [registrosHoje])
 
-  const podeRegistrar = Boolean(colaborador) && (dentro || (podeEscolher && gps.estado === 'ok'))
+  const podeRegistrar = Boolean(colaborador) && (dentro || podeIgnorarLocal)
 
   async function registrar(captura?: CapturaPonto) {
-    if (!colaborador || !obra) {
-      toast.push('Selecione o colaborador e a obra.', 'erro')
+    if (!colaborador || (!obra && !podeIgnorarLocal)) {
+      toast.push('Selecione o colaborador e o local.', 'erro')
       return
     }
     if (!podeRegistrar) {
-      toast.push('Fora do perimetro da obra.', 'erro')
+      toast.push('Fora do perimetro do local.', 'erro')
       return
     }
-    if (!captura && (obra.exigir_foto || obra.exigir_face)) {
+    if (!captura && obra && (obra.exigir_foto || obra.exigir_face)) {
       setCapturaAberta(true)
       return
     }
 
+    const manual = podeIgnorarLocal && !dentro
     const hoje = todayISO()
     if (proximoTipo === 'ENTRADA' && existeEntradaNoPeriodo(registrosHoje, hoje, formatTime(agora))) {
       toast.push('Ja existe entrada registrada neste periodo.', 'erro')
@@ -140,20 +144,25 @@ export function PontoPage() {
     try {
       await api.createPonto({
         colaborador_id: colaborador.id,
-        obra_id: obra.id,
+        obra_id: obra?.id ?? null,
         tipo: proximoTipo,
         hora_registro: wallClockISO(),
         status: 'PENDENTE',
-        origem: 'APP',
+        origem: manual ? 'MANUAL' : 'APP',
         lat_registro: gps.lat != null ? String(gps.lat) : null,
         lng_registro: gps.lng != null ? String(gps.lng) : null,
         foto: captura?.foto ?? null,
         face_detectada: captura?.face ?? null,
         dispositivo: navigator.userAgent.slice(0, 150),
+        observacao: manual
+          ? 'Ponto manual registrado pelo administrador (sem validacao de localizacao).'
+          : null,
         pago_em_fechamento: false,
       })
       toast.push(
-        `${proximoTipo === 'ENTRADA' ? 'Entrada' : 'Saida'} registrada. Aguardando aprovacao.`,
+        `${proximoTipo === 'ENTRADA' ? 'Entrada' : 'Saida'} registrada${
+          manual ? ' manualmente (admin)' : ''
+        }. Aguardando aprovacao.`,
         'sucesso',
       )
     } catch {
@@ -190,7 +199,11 @@ export function PontoPage() {
                 />
                 <span className={cn('relative inline-flex h-2 w-2 rounded-full', dentro ? 'bg-success' : 'bg-warning')} />
               </span>
-              {dentro ? 'Dentro do perimetro' : 'Fora do perimetro'}
+              {dentro
+                ? 'Dentro do perimetro'
+                : podeIgnorarLocal
+                  ? 'Modo manual (admin)'
+                  : 'Fora do perimetro'}
             </div>
           </div>
 
@@ -207,7 +220,7 @@ export function PontoPage() {
                     ))}
                   </Select>
                 </Field>
-                <Field label="Obra">
+                <Field label="Local">
                   <Select value={obraId} onChange={(e) => setObraId(e.target.value)}>
                     <option value="">Selecione</option>
                     {obras.map((o) => (
@@ -231,7 +244,7 @@ export function PontoPage() {
                 )}
                 <span className="font-semibold">
                   {gps.estado === 'ok'
-                    ? `Localizacao capturada${distancia != null ? ` - ${Math.round(distancia)} m da obra` : ''}`
+                    ? `Localizacao capturada${distancia != null ? ` - ${Math.round(distancia)} m do local` : ''}`
                     : gps.estado === 'erro'
                       ? gps.msg
                       : 'Obtendo localizacao...'}
@@ -263,12 +276,17 @@ export function PontoPage() {
                 ) : (
                   <Camera className="h-3.5 w-3.5" />
                 )}
-                Esta obra exige {obra.exigir_face ? 'foto com verificacao facial' : 'foto'} no registro.
+                Este local exige {obra.exigir_face ? 'foto com verificacao facial' : 'foto'} no registro.
               </p>
             )}
-            {!dentro && gps.estado === 'ok' && !podeEscolher && (
+            {!dentro && !podeIgnorarLocal && (
               <p className="text-center text-xs text-muted-foreground">
-                Aproxime-se da obra para liberar o registro.
+                Aproxime-se do local para liberar o registro.
+              </p>
+            )}
+            {podeIgnorarLocal && (
+              <p className="text-center text-xs text-muted-foreground">
+                Admin: registro liberado mesmo fora do local. O ponto fica marcado como manual.
               </p>
             )}
           </div>

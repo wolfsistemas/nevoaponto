@@ -1,5 +1,5 @@
 import type { TipoContrato } from './types'
-import { getTabelaLegal, type TabelaLegal } from './tabelas'
+import type { TabelaLegal } from './tabelas'
 
 export interface ColaboradorFolha {
   id: string
@@ -9,36 +9,25 @@ export interface ColaboradorFolha {
   salario_base?: number | null
   /** Valor da diaria (diarista) */
   valor_diaria?: number | null
-  /** Valor do metro (terceirizado/empreita) */
-  valor_metro?: number | null
-  dependentes?: number
-  recebe_vale_transporte?: boolean
+  /** Valor combinado total de um contrato de empreita */
+  valor_empreita?: number | null
 }
 
 export interface EntradaFolha {
   colaborador: ColaboradorFolha
   competencia: string
-  /** Diarias apuradas no ponto (diarista / CLT com dias trabalhados) */
+  /** Diarias apuradas no ponto (diarista) */
   totalDiarias?: number
-  /** Metros apurados (terceirizado / empreita) */
-  totalMetros?: number
-  /** Horas extras */
-  horasExtras50?: number
-  horasExtras100?: number
-  /** Horas em periodo noturno (para adicional) */
-  horasNoturnas?: number
-  /** Comissoes / gratificacoes */
-  comissoes?: number
+  /** Valor a pagar de uma empreita (informado em % ou em reais no lancamento) */
+  valorEmpreita?: number
+  /** Texto de referencia do lancamento de empreita (ex.: "35% de 10.000,00") */
+  empreitaReferencia?: string
+  /** Proventos avulsos informados pelo gestor/contador */
+  outrosProventos?: number
   /** Adiantamentos / vales ja pagos */
   adiantamentos?: number
-  /** Outros descontos avulsos */
-  outrosDescontos?: number
-  /** Descontos de VR/VA etc. (ja calculados) */
-  descontosBeneficios?: number
-  /** DSR sobre horas extras (valor informado) */
-  dsr?: number
-  /** Rotulo da verba de producao (metros) */
-  metrosLabel?: string
+  /** Descontos definidos pelo contador */
+  descontosInformados?: number
 }
 
 export interface Verba {
@@ -104,15 +93,15 @@ function round2(v: number): number {
 }
 
 /**
- * Motor de folha. Calcula proventos, descontos e encargos de uma competencia
- * para um colaborador. Regimes nao-CLT (terceirizado/empreita) nao geram
- * encargos trabalhistas, apenas o pagamento pela producao.
+ * Motor de folha. Monta a previa de uma competencia para um colaborador.
+ *
+ * Os descontos de INSS, IRRF, FGTS e vale-transporte nao sao calculados
+ * automaticamente: o contador informa o valor do desconto e o sistema apenas
+ * registra e gera o holerite. A empreita e lancada como valor combinado
+ * (informado em % ou em reais no momento do lancamento).
  */
 export function calcularFolha(entrada: EntradaFolha): ResultadoFolha {
   const { colaborador, competencia } = entrada
-  const tabela = getTabelaLegal(competencia)
-  const ehCLT = colaborador.tipo_contrato === 'CLT'
-  const registraEncargos = ehCLT
 
   const proventos: Verba[] = []
   const descontos: Verba[] = []
@@ -120,156 +109,50 @@ export function calcularFolha(entrada: EntradaFolha): ResultadoFolha {
 
   const salarioBase = Number(colaborador.salario_base ?? 0)
   const valorDiaria = Number(colaborador.valor_diaria ?? 0)
-  const valorMetro = Number(colaborador.valor_metro ?? 0)
-  const baseHora = salarioBase > 0 ? salarioBase / 220 : 0
+  const valorEmpreita = Number(colaborador.valor_empreita ?? 0)
 
-  if (ehCLT) {
-    proventos.push({ descricao: 'Salario base', valor: round2(salarioBase) })
-
+  if (colaborador.tipo_contrato === 'CLT') {
+    if (salarioBase > 0) {
+      proventos.push({ descricao: 'Salario base', valor: round2(salarioBase) })
+    }
+  } else if (colaborador.tipo_contrato === 'DIARISTA') {
     const diarias = Number(entrada.totalDiarias ?? 0)
     if (diarias > 0 && valorDiaria > 0) {
       proventos.push({
-        descricao: 'Dias trabalhados',
-        referencia: `${diarias.toFixed(2)} dias`,
+        descricao: 'Diarias trabalhadas',
+        referencia: `${diarias.toFixed(2)} x ${valorDiaria.toFixed(2)}`,
         valor: round2(diarias * valorDiaria),
       })
     }
-
-    const he50 = Number(entrada.horasExtras50 ?? 0)
-    if (he50 > 0 && baseHora > 0) {
-      proventos.push({
-        descricao: 'Horas extras 50%',
-        referencia: `${he50}h`,
-        valor: round2(baseHora * (1 + tabela.horaExtra50) * he50),
-      })
-    }
-
-    const he100 = Number(entrada.horasExtras100 ?? 0)
-    if (he100 > 0 && baseHora > 0) {
-      proventos.push({
-        descricao: 'Horas extras 100%',
-        referencia: `${he100}h`,
-        valor: round2(baseHora * (1 + tabela.horaExtra100) * he100),
-      })
-    }
-
-    const noturnas = Number(entrada.horasNoturnas ?? 0)
-    if (noturnas > 0 && baseHora > 0) {
-      proventos.push({
-        descricao: 'Adicional noturno',
-        referencia: `${noturnas}h`,
-        valor: round2(baseHora * tabela.adicionalNoturnoAliquota * noturnas),
-      })
-    }
-
-    if (Number(entrada.dsr ?? 0) > 0) {
-      proventos.push({ descricao: 'DSR sobre horas extras', valor: round2(Number(entrada.dsr)) })
-    }
-
-    if (Number(entrada.comissoes ?? 0) > 0) {
-      proventos.push({ descricao: 'Comissoes', valor: round2(Number(entrada.comissoes)) })
-    }
-
-    const totalProventos = round2(proventos.reduce((s, v) => s + v.valor, 0))
-
-    // Base de INSS = proventos de natureza salarial (todos os acima)
-    const baseINSS = Math.min(totalProventos, tabela.tetoINSS)
-    const valorINSS = calcularINSS(baseINSS, tabela)
-    if (valorINSS > 0) descontos.push({ descricao: 'INSS', valor: valorINSS })
-
-    const baseIRRF = Math.max(0, totalProventos - valorINSS)
-    const valorIRRF = calcularIRRF(baseIRRF, Number(colaborador.dependentes ?? 0), tabela)
-    if (valorIRRF > 0) descontos.push({ descricao: 'IRRF', valor: valorIRRF })
-
-    if (colaborador.recebe_vale_transporte && salarioBase > 0) {
-      const vt = round2(salarioBase * tabela.valeTransporteAliquota)
-      if (vt > 0) descontos.push({ descricao: 'Vale-transporte (6%)', valor: vt })
-    }
-
-    if (Number(entrada.descontosBeneficios ?? 0) > 0) {
-      descontos.push({
-        descricao: 'Descontos de beneficios',
-        valor: round2(Number(entrada.descontosBeneficios)),
-      })
-    }
-
-    if (Number(entrada.adiantamentos ?? 0) > 0) {
-      descontos.push({ descricao: 'Adiantamentos', valor: round2(Number(entrada.adiantamentos)) })
-    }
-
-    if (Number(entrada.outrosDescontos ?? 0) > 0) {
-      descontos.push({ descricao: 'Outros descontos', valor: round2(Number(entrada.outrosDescontos)) })
-    }
-
-    const totalDescontos = round2(descontos.reduce((s, v) => s + v.valor, 0))
-    const valorFGTS = round2(totalProventos * tabela.fgtsAliquota)
-
-    encargos.push({ descricao: 'FGTS (8%)', valor: valorFGTS })
-    encargos.push({
-      descricao: 'INSS patronal (20%)',
-      valor: round2(totalProventos * tabela.inssPatronalAliquota),
-    })
-    encargos.push({ descricao: 'Provisao 13o salario', valor: round2(salarioBase / 12) })
-    encargos.push({
-      descricao: 'Provisao ferias + 1/3',
-      valor: round2((salarioBase / 12) * (1 + 1 / 3)),
-    })
-    const totalEncargos = round2(encargos.reduce((s, v) => s + v.valor, 0))
-
-    const valorLiquido = round2(totalProventos - totalDescontos)
-
-    return {
-      colaborador_id: colaborador.id,
-      colaborador_nome: colaborador.nome,
-      competencia,
-      tipo_contrato: colaborador.tipo_contrato,
-      registraEncargos,
-      proventos,
-      descontos,
-      encargos,
-      totalProventos,
-      totalDescontos,
-      totalEncargos,
-      baseINSS,
-      valorINSS,
-      baseIRRF,
-      valorIRRF,
-      valorFGTS,
-      valorLiquido,
-      custoTotal: round2(totalProventos + totalEncargos),
-    }
-  }
-
-  // Regimes nao-CLT: pagamento por diaria ou por metro, sem encargos.
-  if (colaborador.tipo_contrato === 'DIARISTA') {
-    const diarias = Number(entrada.totalDiarias ?? 0)
-    proventos.push({
-      descricao: 'Diarias trabalhadas',
-      referencia: `${diarias.toFixed(2)} x ${valorDiaria.toFixed(2)}`,
-      valor: round2(diarias * valorDiaria),
-    })
   } else {
-    const metros = Number(entrada.totalMetros ?? 0)
-    proventos.push({
-      descricao: entrada.metrosLabel ?? 'Producao (metros)',
-      referencia: `${metros.toFixed(2)} m x ${valorMetro.toFixed(2)}`,
-      valor: round2(metros * valorMetro),
-    })
+    const devido = Number(entrada.valorEmpreita ?? 0)
+    if (devido > 0) {
+      proventos.push({
+        descricao: 'Empreita',
+        referencia:
+          entrada.empreitaReferencia ??
+          (valorEmpreita > 0 ? `contrato ${formatNumero(valorEmpreita)}` : undefined),
+        valor: round2(devido),
+      })
+    }
   }
 
-  if (Number(entrada.comissoes ?? 0) > 0) {
-    proventos.push({ descricao: 'Comissoes', valor: round2(Number(entrada.comissoes)) })
+  const outros = Number(entrada.outrosProventos ?? 0)
+  if (outros > 0) {
+    proventos.push({ descricao: 'Outros proventos', valor: round2(outros) })
+  }
+
+  const adiantamentos = Number(entrada.adiantamentos ?? 0)
+  if (adiantamentos > 0) {
+    descontos.push({ descricao: 'Adiantamentos', valor: round2(adiantamentos) })
+  }
+
+  const descontoContador = Number(entrada.descontosInformados ?? 0)
+  if (descontoContador > 0) {
+    descontos.push({ descricao: 'Descontos', valor: round2(descontoContador) })
   }
 
   const totalProventos = round2(proventos.reduce((s, v) => s + v.valor, 0))
-
-  if (Number(entrada.adiantamentos ?? 0) > 0) {
-    descontos.push({ descricao: 'Adiantamentos', valor: round2(Number(entrada.adiantamentos)) })
-  }
-  if (Number(entrada.outrosDescontos ?? 0) > 0) {
-    descontos.push({ descricao: 'Outros descontos', valor: round2(Number(entrada.outrosDescontos)) })
-  }
-
   const totalDescontos = round2(descontos.reduce((s, v) => s + v.valor, 0))
   const valorLiquido = round2(totalProventos - totalDescontos)
 
@@ -293,4 +176,8 @@ export function calcularFolha(entrada: EntradaFolha): ResultadoFolha {
     valorLiquido,
     custoTotal: totalProventos,
   }
+}
+
+function formatNumero(v: number): string {
+  return v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }

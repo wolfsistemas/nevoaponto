@@ -243,7 +243,7 @@ export function RelatoriosPage() {
 
       <Card className="mt-4">
         <CardHeader>
-          <CardTitle>Custo por obra</CardTitle>
+          <CardTitle>Custo por local</CardTitle>
         </CardHeader>
         <CardContent className="h-64">
           <ResponsiveContainer width="100%" height="100%">

@@ -140,7 +140,7 @@ export function AprovacaoPage() {
           onChange={(e) => setFiltroObra(e.target.value)}
           className="sm:max-w-xs"
         >
-          <option value="">Todas as obras</option>
+          <option value="">Todos os locais</option>
           {obras.map((o) => (
             <option key={o.id} value={o.id}>
               {o.nome}
@@ -249,9 +249,9 @@ export function AprovacaoPage() {
               </Select>
             </Field>
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Obra">
+              <Field label="Local">
                 <Select value={manual.obra_id} onChange={(e) => setManual({ ...manual, obra_id: e.target.value })}>
-                  <option value="">Sem obra</option>
+                  <option value="">Sem local</option>
                   {obras.map((o) => (
                     <option key={o.id} value={o.id}>
                       {o.nome}

@@ -1,5 +1,5 @@
 import { calcularTotalDiarias, proximaMatricula } from '@/core/ponto'
-import { calcularFolha, type EntradaFolha, type ResultadoFolha } from '@/core/folha'
+import { calcularFolha, type ResultadoFolha } from '@/core/folha'
 import type { PontoRegistro, StatusPonto } from '@/core/types'
 import { getSupabase, isSupabaseConfigured } from '@/lib/supabase'
 import { localStore, novoId } from './localStore'
@@ -27,6 +27,21 @@ export interface ApuracaoCompetencia {
   totalDescontos: number
   totalEncargos: number
   totalLiquido: number
+}
+
+/** Dados informados no lancamento manual da folha de um colaborador. */
+export interface LancamentoFolhaInput {
+  competencia: string
+  colaborador_id: string
+  totalDiarias?: number
+  /** Valor a pagar da empreita (calculado a partir do % ou digitado em reais) */
+  valorEmpreita?: number
+  /** Percentual do contrato de empreita, quando aplicavel */
+  empreitaPercentual?: number
+  outrosProventos?: number
+  adiantamentos?: number
+  /** Descontos informados pelo contador */
+  descontosInformados?: number
 }
 
 const round2 = (v: number) => Math.round(v * 100) / 100
@@ -229,6 +244,20 @@ const local = {
 
   listProfiles(): Profile[] {
     return localStore.get().profiles
+  },
+  listFolhaItens(competencia?: string): FolhaItem[] {
+    const todos = localStore.get().folhaItens
+    return competencia ? todos.filter((f) => f.competencia === competencia) : todos
+  },
+  upsertFolhaItem(item: FolhaItem): FolhaItem {
+    localStore.mutate((db) => {
+      const i = db.folhaItens.findIndex(
+        (f) => f.competencia === item.competencia && f.colaborador_id === item.colaborador_id,
+      )
+      if (i >= 0) db.folhaItens[i] = item
+      else db.folhaItens.push(item)
+    })
+    return item
   },
 }
 
@@ -553,48 +582,130 @@ const apiBase = {
     return sbUpsert<Profile>('profiles', input as Profile)
   },
 
+  async listFolhaItens(competencia?: string): Promise<FolhaItem[]> {
+    if (isSupabaseConfigured) {
+      let query = getSupabase().from('folha_itens').select('*')
+      if (competencia) query = query.eq('competencia', competencia)
+      const { data, error } = await query
+      if (error) throw error
+      return (data ?? []) as FolhaItem[]
+    }
+    return local.listFolhaItens(competencia)
+  },
+
+  /**
+   * Salva o lancamento da folha de um colaborador na competencia. O valor do
+   * desconto e informado pelo contador (sem calculo automatico de INSS/IRRF).
+   */
+  async salvarFolhaItem(input: LancamentoFolhaInput): Promise<FolhaItem> {
+    const colaboradores = await api.listColaboradores()
+    const c = colaboradores.find((x) => x.id === input.colaborador_id)
+    if (!c) throw new Error('Colaborador nao encontrado.')
+
+    const valorContrato = Number(c.valor_empreita ?? 0)
+    const referencia =
+      input.empreitaPercentual != null && valorContrato > 0
+        ? `${input.empreitaPercentual}% de ${valorContrato.toLocaleString('pt-BR', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}`
+        : undefined
+
+    let totalDiarias = input.totalDiarias
+    if (totalDiarias == null) {
+      const pontos = await api.listPontos()
+      totalDiarias = calcularTotalDiarias(
+        pontos.filter(
+          (p) =>
+            p.colaborador_id === c.id &&
+            p.status === 'VALIDADO' &&
+            competenciaDe(p.hora_registro) === input.competencia,
+        ),
+      )
+    }
+
+    const resultado = calcularFolha({
+      colaborador: {
+        id: c.id,
+        nome: c.nome,
+        tipo_contrato: c.tipo_contrato,
+        salario_base: c.salario_base,
+        valor_diaria: c.valor_diaria,
+        valor_empreita: c.valor_empreita,
+      },
+      competencia: input.competencia,
+      totalDiarias,
+      valorEmpreita: input.valorEmpreita,
+      empreitaReferencia: referencia,
+      outrosProventos: input.outrosProventos,
+      adiantamentos: input.adiantamentos,
+      descontosInformados: input.descontosInformados,
+    })
+
+    const payload = {
+      competencia: input.competencia,
+      colaborador_id: input.colaborador_id,
+      total_diarias: Number(totalDiarias ?? 0),
+      total_metros: 0,
+      total_proventos: resultado.totalProventos,
+      total_descontos: resultado.totalDescontos,
+      total_encargos: 0,
+      valor_liquido: resultado.valorLiquido,
+      status: 'ABERTO' as const,
+      detalhe: { resultado, manual: input },
+    }
+
+    if (isSupabaseConfigured) {
+      const { data, error } = await getSupabase()
+        .from('folha_itens')
+        .upsert(payload, { onConflict: 'competencia,colaborador_id' })
+        .select()
+        .single()
+      if (error) throw error
+      return data as FolhaItem
+    }
+
+    return local.upsertFolhaItem({
+      id: `${input.competencia}:${input.colaborador_id}`,
+      ...payload,
+    })
+  },
+
   /** Apura a competencia para todos os colaboradores ativos. */
   async apurarCompetencia(competencia: string): Promise<ApuracaoCompetencia> {
-    const [colaboradores, pontos, producao] = await Promise.all([
+    const [colaboradores, pontos, salvos] = await Promise.all([
       api.listColaboradores(),
       api.listPontos(),
-      api.listProducao(),
+      api.listFolhaItens(competencia),
     ])
 
     const itens: ResultadoFolha[] = colaboradores
       .filter((c) => c.ativo)
       .map((c) => {
+        // Um lancamento manual ja salvo prevalece sobre a previa calculada.
+        const salvo = salvos.find((f) => f.colaborador_id === c.id)
+        const snapshot = salvo?.detalhe as { resultado?: ResultadoFolha } | undefined
+        if (snapshot?.resultado) return snapshot.resultado
+
         const pontosColab = pontos.filter(
           (p) =>
             p.colaborador_id === c.id &&
             p.status === 'VALIDADO' &&
             competenciaDe(p.hora_registro) === competencia,
         )
-        const totalDiarias = calcularTotalDiarias(pontosColab)
-        const totalMetros = producao
-          .filter(
-            (p) =>
-              p.colaborador_id === c.id &&
-              competenciaDe(p.data_registro) === competencia,
-          )
-          .reduce((s, p) => s + p.metros, 0)
 
-        const entrada: EntradaFolha = {
+        return calcularFolha({
           colaborador: {
             id: c.id,
             nome: c.nome,
             tipo_contrato: c.tipo_contrato,
             salario_base: c.salario_base,
             valor_diaria: c.valor_diaria,
-            valor_metro: c.valor_metro,
-            dependentes: c.dependentes,
-            recebe_vale_transporte: c.recebe_vale_transporte,
+            valor_empreita: c.valor_empreita,
           },
           competencia,
-          totalDiarias,
-          totalMetros,
-        }
-        return calcularFolha(entrada)
+          totalDiarias: calcularTotalDiarias(pontosColab),
+        })
       })
 
     return {
@@ -703,6 +814,7 @@ const METODOS_DE_ESCRITA = new Set<string>([
   'criarAssinatura',
   'cancelarAssinatura',
   'fecharFolha',
+  'salvarFolhaItem',
   'resetDemo',
 ])
 

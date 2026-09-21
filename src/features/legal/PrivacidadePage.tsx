@@ -48,7 +48,7 @@ export function PrivacidadePage() {
       <Secao titulo="5. Dados sensiveis e biometria">
         <p>
           O uso de foto e de verificacao facial e <strong>opcional</strong> e configurado pela empresa
-          por obra. Quando habilitado, o tratamento ocorre com base no consentimento e para a
+          por local de trabalho. Quando habilitado, o tratamento ocorre com base no consentimento e para a
           finalidade especifica de confirmar a autenticidade do registro de ponto. Nao utilizamos
           biometria para outras finalidades nem a compartilhamos com terceiros para fins publicitarios.
         </p>

@@ -107,6 +107,8 @@ export interface Colaborador {
   salario_base?: number | null
   valor_diaria?: number | null
   valor_metro?: number | null
+  /** Valor combinado total de um contrato de empreita */
+  valor_empreita?: number | null
   dependentes?: number
   recebe_vale_transporte?: boolean
   data_contrato?: string | null

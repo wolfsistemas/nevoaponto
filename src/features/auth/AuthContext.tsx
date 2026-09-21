@@ -15,7 +15,7 @@ import { autenticarComBiometria } from '@/lib/webauthn'
 interface AuthState {
   user: Profile | null
   loading: boolean
-  signIn: (login: string, senha: string) => Promise<{ ok: boolean; erro?: string }>
+  signIn: (login: string, senha: string) => Promise<{ ok: boolean; erro?: string; role?: UserRole }>
   entrarComBiometria: (login: string) => Promise<{ ok: boolean; erro?: string }>
   signOut: () => Promise<void>
   signUp: (input: {
@@ -106,7 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const perfil = profiles.find((p) => p.id === data.user!.id) ?? null
         if (!perfil) return { ok: false, erro: 'Usuario sem perfil ativo.' }
         setUser(perfil)
-        return { ok: true }
+        return { ok: true, role: perfil.role }
       }
 
       const profiles = await api.listProfiles()
@@ -115,7 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!senha) return { ok: false, erro: 'Informe a senha.' }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(perfil))
       setUser(perfil)
-      return { ok: true }
+      return { ok: true, role: perfil.role }
     } catch {
       return { ok: false, erro: 'Nao foi possivel entrar. Tente novamente.' }
     }

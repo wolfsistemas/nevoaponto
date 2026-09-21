@@ -1,7 +1,7 @@
 export type TipoPonto = 'ENTRADA' | 'SAIDA' | 'AJUSTE_MANUAL'
 export type StatusPonto = 'PENDENTE' | 'VALIDADO' | 'RECUSADO'
 export type OrigemPonto = 'APP' | 'MANUAL' | 'AUTO'
-export type TipoContrato = 'CLT' | 'DIARISTA' | 'TERCEIRIZADO' | 'EMPREITA'
+export type TipoContrato = 'CLT' | 'DIARISTA' | 'EMPREITA'
 
 export interface PontoRegistro {
   id: string

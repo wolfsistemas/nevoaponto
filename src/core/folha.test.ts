@@ -39,37 +39,37 @@ describe('calcularFolha CLT', () => {
     salario_base: 3000,
   }
 
-  it('calcula proventos, descontos e encargos', () => {
+  it('usa o salario base sem descontos automaticos', () => {
     const r = calcularFolha({ colaborador: clt, competencia: '2025-09' })
     expect(r.totalProventos).toBe(3000)
-    expect(r.valorINSS).toBeCloseTo(253.41, 2)
-    expect(r.valorIRRF).toBeCloseTo(36.55, 2)
-    expect(r.valorFGTS).toBeCloseTo(240, 2)
-    expect(r.valorLiquido).toBeCloseTo(2710.04, 2)
-    expect(r.totalEncargos).toBeCloseTo(1423.33, 2)
-    expect(r.custoTotal).toBeCloseTo(4423.33, 2)
-    expect(r.registraEncargos).toBe(true)
+    expect(r.totalDescontos).toBe(0)
+    expect(r.valorLiquido).toBe(3000)
+    expect(r.totalEncargos).toBe(0)
+    expect(r.valorINSS).toBe(0)
+    expect(r.valorIRRF).toBe(0)
+    expect(r.valorFGTS).toBe(0)
+    expect(r.registraEncargos).toBe(false)
   })
 
-  it('soma horas extras e adicional noturno', () => {
+  it('aplica o desconto informado pelo contador', () => {
     const r = calcularFolha({
       colaborador: clt,
       competencia: '2025-09',
-      horasExtras50: 10,
-      horasNoturnas: 5,
+      descontosInformados: 289.96,
     })
-    // base hora = 3000/220
-    expect(r.totalProventos).toBeGreaterThan(3000)
-    expect(r.valorFGTS).toBeCloseTo(r.totalProventos * 0.08, 2)
+    expect(r.totalProventos).toBe(3000)
+    expect(r.totalDescontos).toBeCloseTo(289.96, 2)
+    expect(r.valorLiquido).toBeCloseTo(2710.04, 2)
+    expect(r.descontos.some((d) => d.descricao === 'Descontos')).toBe(true)
   })
 
-  it('desconta vale-transporte a 6%', () => {
+  it('soma proventos avulsos', () => {
     const r = calcularFolha({
-      colaborador: { ...clt, recebe_vale_transporte: true },
+      colaborador: clt,
       competencia: '2025-09',
+      outrosProventos: 500,
     })
-    expect(r.descontos.some((d) => d.descricao.includes('Vale-transporte'))).toBe(true)
-    expect(r.totalDescontos).toBeCloseTo(r.valorINSS + r.valorIRRF + 180, 2)
+    expect(r.totalProventos).toBe(3500)
   })
 })
 
@@ -85,14 +85,16 @@ describe('calcularFolha nao-CLT', () => {
     expect(r.valorLiquido).toBe(3000)
   })
 
-  it('terceirizado paga por metro sem encargos', () => {
+  it('empreita usa o valor lancado do contrato', () => {
     const r = calcularFolha({
-      colaborador: { id: 't1', nome: 'Pedro', tipo_contrato: 'TERCEIRIZADO', valor_metro: 12 },
+      colaborador: { id: 'e1', nome: 'Pedro', tipo_contrato: 'EMPREITA', valor_empreita: 10000 },
       competencia: '2025-09',
-      totalMetros: 350,
+      valorEmpreita: 3500,
+      empreitaReferencia: '35% de 10.000,00',
     })
-    expect(r.totalProventos).toBe(4200)
+    expect(r.totalProventos).toBe(3500)
     expect(r.registraEncargos).toBe(false)
+    expect(r.proventos[0].referencia).toBe('35% de 10.000,00')
   })
 
   it('aplica adiantamentos', () => {

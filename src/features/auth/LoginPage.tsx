@@ -24,12 +24,8 @@ export function LoginPage() {
   const [bioOk, setBioOk] = useState(false)
 
   // O Super Admin tem um portal exclusivo (admin.html) fora do app comum.
-  useEffect(() => {
-    if (login.trim().toLowerCase() === 'superadmin') {
-      window.location.assign(`${import.meta.env.BASE_URL}admin.html`)
-    }
-  }, [login])
-
+  // O redirecionamento acontece apenas apos o login validar as credenciais,
+  // reaproveitando a sessao ja aberta (nao pede login duas vezes).
   useEffect(() => {
     biometriaDisponivel().then(setBioOk).catch(() => setBioOk(false))
   }, [])
@@ -40,8 +36,15 @@ export function LoginPage() {
     setCarregando(true)
     const res = await signIn(login, senha)
     setCarregando(false)
-    if (res.ok) navigate(ROUTES.dashboard, { replace: true })
-    else setErro(res.erro ?? 'Nao foi possivel entrar.')
+    if (!res.ok) {
+      setErro(res.erro ?? 'Nao foi possivel entrar.')
+      return
+    }
+    if (res.role === 'superadmin') {
+      window.location.assign(`${import.meta.env.BASE_URL}admin.html`)
+      return
+    }
+    navigate(ROUTES.dashboard, { replace: true })
   }
 
   async function entrarBio() {

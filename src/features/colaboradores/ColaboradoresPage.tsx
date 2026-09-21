@@ -1,5 +1,17 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { KeyRound, Pencil, Plus, Search, Power, ShieldCheck, Users } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import {
+  AlertTriangle,
+  Copy,
+  KeyRound,
+  MessageCircle,
+  Pencil,
+  Plus,
+  Search,
+  Power,
+  ShieldCheck,
+  Users,
+} from 'lucide-react'
 import { useAppData } from '@/data/useAppData'
 import { api } from '@/data/api'
 import type { Colaborador, Profile } from '@/data/types'
@@ -12,12 +24,19 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog } from '@/components/ui/dialog'
 import { useToast } from '@/components/ui/toast'
 import { formatMoney, formatCpf, onlyDigits } from '@/lib/format'
+import { BRAND, ROUTES } from '@/lib/brand'
 
-const CONTRATO_LABEL: Record<TipoContrato, string> = {
+const CONTRATO_LABEL: Record<string, string> = {
   CLT: 'CLT',
   DIARISTA: 'Diarista',
-  TERCEIRIZADO: 'Terceirizado',
   EMPREITA: 'Empreita',
+  TERCEIRIZADO: 'Empreita',
+}
+
+const TIPOS_CONTRATO: TipoContrato[] = ['CLT', 'DIARISTA', 'EMPREITA']
+
+function rotuloContrato(tipo: string): string {
+  return CONTRATO_LABEL[tipo] ?? tipo
 }
 
 type FormState = Partial<Colaborador> & { nome: string }
@@ -68,6 +87,12 @@ export function ColaboradoresPage() {
     role: 'funcionario',
   })
   const [criandoAcesso, setCriandoAcesso] = useState(false)
+  const [acessoCriado, setAcessoCriado] = useState<{
+    nome: string
+    login: string
+    senha: string
+    telefone?: string | null
+  } | null>(null)
   const [perfis, setPerfis] = useState<Profile[]>([])
 
   useEffect(() => {
@@ -97,14 +122,12 @@ export function ColaboradoresPage() {
       .sort((a, b) => a.nome.localeCompare(b.nome))
   }, [colaboradores, busca, filtroObra, filtroTipo])
 
-  function nomeObra(id?: string | null): string {
-    return obras.find((o) => o.id === id)?.nome ?? 'Sem obra'
+  function nomeLocal(id?: string | null): string {
+    return obras.find((o) => o.id === id)?.nome ?? 'Sem local'
   }
 
   function valorBase(c: Colaborador): string {
-    if (c.tipo_contrato === 'TERCEIRIZADO' || c.tipo_contrato === 'EMPREITA') {
-      return `${formatMoney(c.valor_metro)}/m`
-    }
+    if (c.tipo_contrato === 'EMPREITA') return `${formatMoney(c.valor_empreita)} (contrato)`
     if (c.tipo_contrato === 'DIARISTA') return `${formatMoney(c.valor_diaria)}/dia`
     return `${formatMoney(c.salario_base)}/mes`
   }
@@ -122,6 +145,9 @@ export function ColaboradoresPage() {
         cpf: form.cpf ? onlyDigits(form.cpf) : null,
       })
       toast.push('Colaborador salvo.', 'sucesso')
+      if (obras.length === 0) {
+        toast.push('Cadastre um local de trabalho para o ponto funcionar.', 'erro')
+      }
       setForm(null)
     } catch {
       toast.push('Erro ao salvar colaborador.', 'erro')
@@ -184,7 +210,13 @@ export function ColaboradoresPage() {
           colaborador_id: acessoDe.id,
           obra_id: acessoDe.obra_id ?? null,
         })
-        toast.push(`Acesso criado: ${res.email}. Entregue a senha ao colaborador.`, 'sucesso')
+        toast.push(`Acesso criado: ${res.login}. Compartilhe com o colaborador.`, 'sucesso')
+        setAcessoCriado({
+          nome: acessoDe.nome,
+          login: res.login,
+          senha: acesso.senha,
+          telefone: acessoDe.telefone,
+        })
       }
       api
         .listProfiles()
@@ -199,14 +231,45 @@ export function ColaboradoresPage() {
   }
 
   const exigeDiaria = form?.tipo_contrato === 'DIARISTA'
-  const exigeMetro = form?.tipo_contrato === 'TERCEIRIZADO' || form?.tipo_contrato === 'EMPREITA'
+  const exigeEmpreita = form?.tipo_contrato === 'EMPREITA'
   const exigeSalario = form?.tipo_contrato === 'CLT'
+
+  function mensagemAcesso(info: { nome: string; login: string; senha: string }): string {
+    const url = `${window.location.origin}${import.meta.env.BASE_URL}#${ROUTES.login}`
+    return [
+      `Ola, ${info.nome}! Seu acesso ao ${BRAND.name} foi criado.`,
+      `Usuario: ${info.login}`,
+      `Senha: ${info.senha}`,
+      `Acesse: ${url}`,
+      'Troque a senha no primeiro acesso.',
+    ].join('\n')
+  }
+
+  async function copiarAcesso() {
+    if (!acessoCriado) return
+    try {
+      await navigator.clipboard.writeText(mensagemAcesso(acessoCriado))
+      toast.push('Informacoes copiadas.', 'sucesso')
+    } catch {
+      toast.push('Nao foi possivel copiar.', 'erro')
+    }
+  }
+
+  function enviarWhatsapp() {
+    if (!acessoCriado) return
+    const digits = onlyDigits(acessoCriado.telefone ?? '')
+    const numero = digits.length >= 10 ? `55${digits}` : ''
+    window.open(
+      `https://wa.me/${numero}?text=${encodeURIComponent(mensagemAcesso(acessoCriado))}`,
+      '_blank',
+    )
+  }
 
   return (
     <div className="animate-fade-in">
       <PageHeader
         titulo="Colaboradores"
-        descricao="Equipe propria, diaristas, terceirizados e empreiteiros."
+        descricao="Equipe propria, diaristas e empreiteiros."
         icon={Users}
         acao={
           <Button onClick={() => setForm({ ...VAZIO })}>
@@ -214,6 +277,23 @@ export function ColaboradoresPage() {
           </Button>
         }
       />
+
+      {obras.length === 0 && (
+        <div className="mb-4 flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 p-3">
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
+          <div className="text-sm">
+            <p className="font-bold">Cadastre um local de trabalho</p>
+            <p className="text-muted-foreground">
+              O ponto usa a localizacao do colaborador. Cadastre o primeiro local em{' '}
+              <Link to={ROUTES.obras} className="font-bold text-primary hover:underline">
+                Locais
+              </Link>
+              . Se o computador nao tiver GPS, abra pelo celular para capturar a localizacao ou use
+              as coordenadas do Google Maps.
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="mb-4 grid gap-2 sm:grid-cols-[1fr_180px_160px]">
         <div className="relative">
@@ -226,7 +306,7 @@ export function ColaboradoresPage() {
           />
         </div>
         <Select value={filtroObra} onChange={(e) => setFiltroObra(e.target.value)}>
-          <option value="">Todas as obras</option>
+          <option value="">Todos os locais</option>
           {obras.map((o) => (
             <option key={o.id} value={o.id}>
               {o.nome}
@@ -235,9 +315,9 @@ export function ColaboradoresPage() {
         </Select>
         <Select value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)}>
           <option value="">Todos os tipos</option>
-          {Object.entries(CONTRATO_LABEL).map(([k, v]) => (
-            <option key={k} value={k}>
-              {v}
+          {TIPOS_CONTRATO.map((t) => (
+            <option key={t} value={t}>
+              {CONTRATO_LABEL[t]}
             </option>
           ))}
         </Select>
@@ -260,7 +340,7 @@ export function ColaboradoresPage() {
                   </div>
                   <div>
                     <p className="font-bold leading-tight">{c.nome}</p>
-                    <p className="text-xs text-muted-foreground">{c.cargo ?? CONTRATO_LABEL[c.tipo_contrato]}</p>
+                    <p className="text-xs text-muted-foreground">{c.cargo ?? rotuloContrato(c.tipo_contrato)}</p>
                   </div>
                 </div>
                 <Badge variant={c.ativo ? 'success' : 'destructive'}>
@@ -269,7 +349,7 @@ export function ColaboradoresPage() {
               </div>
 
               <div className="mt-3 space-y-1 text-xs text-muted-foreground">
-                <p>{nomeObra(c.obra_id)}</p>
+                <p>{nomeLocal(c.obra_id)}</p>
                 <p>CPF: {formatCpf(c.cpf) || '-'}</p>
                 {c.telefone && <p>Tel: {c.telefone}</p>}
                 {acessoPorColaborador.has(c.id) && (
@@ -281,7 +361,7 @@ export function ColaboradoresPage() {
 
               <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
                 <div>
-                  <Badge variant="secondary">{CONTRATO_LABEL[c.tipo_contrato]}</Badge>
+                  <Badge variant="secondary">{rotuloContrato(c.tipo_contrato)}</Badge>
                   {c.matricula != null && (
                     <span className="ml-2 text-xs font-bold text-muted-foreground">
                       Mat. {c.matricula}
@@ -372,19 +452,19 @@ export function ColaboradoresPage() {
                   value={form.tipo_contrato}
                   onChange={(e) => setForm({ ...form, tipo_contrato: e.target.value as TipoContrato })}
                 >
-                  {Object.entries(CONTRATO_LABEL).map(([k, v]) => (
-                    <option key={k} value={k}>
-                      {v}
+                  {TIPOS_CONTRATO.map((t) => (
+                    <option key={t} value={t}>
+                      {CONTRATO_LABEL[t]}
                     </option>
                   ))}
                 </Select>
               </Field>
-              <Field label="Obra">
+              <Field label="Local de trabalho">
                 <Select
                   value={form.obra_id ?? ''}
                   onChange={(e) => setForm({ ...form, obra_id: e.target.value || null })}
                 >
-                  <option value="">Sem obra</option>
+                  <option value="">Sem local</option>
                   {obras.map((o) => (
                     <option key={o.id} value={o.id}>
                       {o.nome}
@@ -415,13 +495,13 @@ export function ColaboradoresPage() {
                   />
                 </Field>
               )}
-              {exigeMetro && (
-                <Field label="Valor do metro (R$)">
+              {exigeEmpreita && (
+                <Field label="Valor combinado (R$)">
                   <Input
                     type="number"
                     step="0.01"
-                    value={form.valor_metro ?? ''}
-                    onChange={(e) => setForm({ ...form, valor_metro: Number(e.target.value) })}
+                    value={form.valor_empreita ?? ''}
+                    onChange={(e) => setForm({ ...form, valor_empreita: Number(e.target.value) })}
                   />
                 </Field>
               )}
@@ -555,6 +635,47 @@ export function ColaboradoresPage() {
               </Button>
             </div>
           </form>
+        )}
+      </Dialog>
+
+      <Dialog
+        open={Boolean(acessoCriado)}
+        onClose={() => setAcessoCriado(null)}
+        title="Acesso criado"
+        description="Compartilhe o usuario e a senha com o colaborador."
+      >
+        {acessoCriado && (
+          <div className="space-y-4">
+            <div className="space-y-2 rounded-xl border border-border bg-muted/40 p-4 text-sm">
+              <p>
+                <span className="text-muted-foreground">Colaborador:</span>{' '}
+                <strong>{acessoCriado.nome}</strong>
+              </p>
+              <p>
+                <span className="text-muted-foreground">Usuario:</span>{' '}
+                <strong>{acessoCriado.login}</strong>
+              </p>
+              <p>
+                <span className="text-muted-foreground">Senha:</span>{' '}
+                <strong>{acessoCriado.senha}</strong>
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button variant="outline" className="flex-1" onClick={copiarAcesso}>
+                <Copy className="h-4 w-4" /> Copiar informacoes
+              </Button>
+              <Button variant="success" className="flex-1" onClick={enviarWhatsapp}>
+                <MessageCircle className="h-4 w-4" /> Enviar no WhatsApp
+              </Button>
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              O WhatsApp abre com a mensagem pronta
+              {acessoCriado.telefone ? ' para o telefone cadastrado' : ' (escolha o contato)'}.
+              Oriente a troca da senha no primeiro acesso.
+            </p>
+          </div>
         )}
       </Dialog>
     </div>

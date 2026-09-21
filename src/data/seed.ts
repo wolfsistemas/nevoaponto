@@ -177,10 +177,10 @@ export function criarSeed(): Database {
       cpf: '56789012345',
       telefone: '(64) 99999-1005',
       chave_pix: '56789012345',
-      cargo: 'Terceirizado (Metro)',
+      cargo: 'Empreiteira',
       obra_id: 'obra-002',
-      tipo_contrato: 'TERCEIRIZADO',
-      valor_metro: 18,
+      tipo_contrato: 'EMPREITA',
+      valor_empreita: 10000,
       data_contrato: '2025-04-01',
       contrato_assinado: true,
       ativo: true,
@@ -214,7 +214,7 @@ export function criarSeed(): Database {
       cargo: 'Empreita',
       obra_id: 'obra-001',
       tipo_contrato: 'EMPREITA',
-      valor_metro: 22,
+      valor_empreita: 8000,
       data_contrato: '2025-05-05',
       ativo: true,
     },
@@ -253,26 +253,7 @@ export function criarSeed(): Database {
     },
   ]
 
-  const producao = [
-    {
-      id: 'prod-001',
-      colaborador_id: 'colab-005',
-      obra_id: 'obra-002',
-      data_registro: new Date().toISOString().slice(0, 10),
-      metros: 320,
-      valor_metro: 18,
-      status: 'PENDENTE' as const,
-    },
-    {
-      id: 'prod-002',
-      colaborador_id: 'colab-007',
-      obra_id: 'obra-001',
-      data_registro: new Date().toISOString().slice(0, 10),
-      metros: 185,
-      valor_metro: 22,
-      status: 'PENDENTE' as const,
-    },
-  ]
+  const producao: [] = []
 
   return {
     obras,

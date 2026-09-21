@@ -20,7 +20,7 @@ export function TermosPage() {
       <Secao titulo="2. Descricao do servico">
         <p>
           O {BRAND.name} e um software como servico (SaaS) para registro de ponto, controle de
-          jornada, gestao de obras, calculo de folha de pagamento e emissao de recibos. O servico e
+          jornada, gestao de locais de trabalho, calculo de folha de pagamento e emissao de recibos. O servico e
           fornecido "no estado em que se encontra", podendo evoluir, ser atualizado ou
           descontinuado mediante aviso.
         </p>

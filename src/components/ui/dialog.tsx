@@ -30,7 +30,7 @@ export function Dialog({ open, onClose, title, description, children, footer, cl
   const conteudo = (
     <div className="fixed inset-0 z-[80] flex items-end justify-center p-0 sm:items-center sm:p-4">
       <div
-        className="absolute inset-0 bg-foreground/40 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/60"
         onClick={onClose}
         aria-hidden
       />

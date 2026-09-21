@@ -1,18 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BadgeDollarSign, FileText, Printer, Receipt, Wallet } from 'lucide-react'
+import { BadgeDollarSign, FileText, Pencil, Printer, Receipt, Wallet } from 'lucide-react'
 import { api, type ApuracaoCompetencia } from '@/data/api'
 import type { ResultadoFolha } from '@/core/folha'
+import type { TipoContrato } from '@/core/types'
 import { useAuth } from '@/features/auth/AuthContext'
+import { useAppData } from '@/data/useAppData'
 import { PageHeader, StatCard, EmptyState } from '@/components/ui/feedback'
 import { Button } from '@/components/ui/button'
-import { Select } from '@/components/ui/input'
+import { Field, Input, Select } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Dialog } from '@/components/ui/dialog'
 import { Table, TableWrap, Td, Th } from '@/components/ui/table'
 import { useToast } from '@/components/ui/toast'
 import { formatMoney, formatCnpj, competenciaLabel } from '@/lib/format'
 import type { Empresa } from '@/data/types'
-import { BRAND } from '@/lib/brand'
 
 function competenciasDisponiveis(): string[] {
   const out: string[] = []
@@ -29,9 +30,22 @@ function competenciaAtual(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
+interface LancamentoState {
+  colaboradorId: string
+  nome: string
+  tipo: TipoContrato
+  valorContrato: number
+  percentual: string
+  valorEmpreita: string
+  outrosProventos: string
+  adiantamentos: string
+  descontos: string
+}
+
 export function FolhaPage() {
   const toast = useToast()
   const { user } = useAuth()
+  const { colaboradores, pontos } = useAppData()
   const somenteEu = user?.role === 'funcionario'
   const [competencia, setCompetencia] = useState(competenciaAtual())
   const [apuracao, setApuracao] = useState<ApuracaoCompetencia | null>(null)
@@ -39,6 +53,9 @@ export function FolhaPage() {
   const [fechando, setFechando] = useState(false)
   const [detalhe, setDetalhe] = useState<ResultadoFolha | null>(null)
   const [empresa, setEmpresa] = useState<Empresa | null>(null)
+  const [lancamento, setLancamento] = useState<LancamentoState | null>(null)
+  const [salvandoLancamento, setSalvandoLancamento] = useState(false)
+  const [manuais, setManuais] = useState<Map<string, LancamentoState>>(new Map())
 
   useEffect(() => {
     if (api.modo === 'local') return
@@ -48,7 +65,16 @@ export function FolhaPage() {
       .catch(() => undefined)
   }, [])
 
-  const opcoes = useMemo(competenciasDisponiveis, [])
+  // Meses disponiveis: os ultimos 6 meses mais qualquer mes com ponto lancado.
+  const opcoes = useMemo(() => {
+    const set = new Set<string>(competenciasDisponiveis())
+    set.add(competenciaAtual())
+    for (const p of pontos) {
+      const d = new Date(p.hora_registro)
+      set.add(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`)
+    }
+    return Array.from(set).sort().reverse()
+  }, [pontos])
 
   // O funcionario ve apenas o proprio holerite; gestores veem a equipe.
   const itens = useMemo(() => {
@@ -64,10 +90,9 @@ export function FolhaPage() {
         (acc, i) => ({
           proventos: acc.proventos + i.totalProventos,
           descontos: acc.descontos + i.totalDescontos,
-          encargos: acc.encargos + i.totalEncargos,
           liquido: acc.liquido + i.valorLiquido,
         }),
-        { proventos: 0, descontos: 0, encargos: 0, liquido: 0 },
+        { proventos: 0, descontos: 0, liquido: 0 },
       ),
     [itens],
   )
@@ -75,8 +100,29 @@ export function FolhaPage() {
   async function apurar() {
     setCarregando(true)
     try {
-      const res = await api.apurarCompetencia(competencia)
+      const [res, lancados] = await Promise.all([
+        api.apurarCompetencia(competencia),
+        api.listFolhaItens(competencia),
+      ])
       setApuracao(res)
+      const mapa = new Map<string, LancamentoState>()
+      for (const f of lancados) {
+        const manual = (f.detalhe as { manual?: Record<string, number> } | null)?.manual
+        const colab = colaboradores.find((c) => c.id === f.colaborador_id)
+        if (!colab) continue
+        mapa.set(f.colaborador_id, {
+          colaboradorId: colab.id,
+          nome: colab.nome,
+          tipo: colab.tipo_contrato,
+          valorContrato: Number(colab.valor_empreita ?? 0),
+          percentual: manual?.empreitaPercentual != null ? String(manual.empreitaPercentual) : '',
+          valorEmpreita: manual?.valorEmpreita != null ? String(manual.valorEmpreita) : '',
+          outrosProventos: manual?.outrosProventos ? String(manual.outrosProventos) : '',
+          adiantamentos: manual?.adiantamentos ? String(manual.adiantamentos) : '',
+          descontos: manual?.descontosInformados ? String(manual.descontosInformados) : '',
+        })
+      }
+      setManuais(mapa)
     } catch {
       toast.push('Erro ao apurar folha.', 'erro')
     } finally {
@@ -87,7 +133,7 @@ export function FolhaPage() {
   useEffect(() => {
     apurar()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [competencia])
+  }, [competencia, colaboradores])
 
   async function fechar() {
     if (!apuracao) return
@@ -104,7 +150,69 @@ export function FolhaPage() {
     }
   }
 
-  function imprimirHolerite(item: ResultadoFolha, incluirEncargos = true) {
+  function abrirLancamento(item: ResultadoFolha) {
+    const c = colaboradores.find((x) => x.id === item.colaborador_id)
+    if (!c) return
+    const salvo = manuais.get(c.id)
+    setLancamento(
+      salvo ?? {
+        colaboradorId: c.id,
+        nome: c.nome,
+        tipo: c.tipo_contrato,
+        valorContrato: Number(c.valor_empreita ?? 0),
+        percentual: '',
+        valorEmpreita: '',
+        outrosProventos: '',
+        adiantamentos: '',
+        descontos: '',
+      },
+    )
+  }
+
+  function mudarPercentual(valor: string) {
+    setLancamento((l) => {
+      if (!l) return l
+      const pct = Number(valor)
+      const reais =
+        l.valorContrato > 0 && valor !== '' ? String(arredondar((l.valorContrato * pct) / 100)) : ''
+      return { ...l, percentual: valor, valorEmpreita: reais }
+    })
+  }
+
+  function mudarValorEmpreita(valor: string) {
+    setLancamento((l) => {
+      if (!l) return l
+      const reais = Number(valor)
+      const pct =
+        l.valorContrato > 0 && valor !== '' ? String(arredondar((reais / l.valorContrato) * 100)) : ''
+      return { ...l, valorEmpreita: valor, percentual: pct }
+    })
+  }
+
+  async function salvarLancamento() {
+    if (!lancamento) return
+    setSalvandoLancamento(true)
+    try {
+      await api.salvarFolhaItem({
+        competencia,
+        colaborador_id: lancamento.colaboradorId,
+        valorEmpreita: lancamento.valorEmpreita ? Number(lancamento.valorEmpreita) : undefined,
+        empreitaPercentual: lancamento.percentual ? Number(lancamento.percentual) : undefined,
+        outrosProventos: lancamento.outrosProventos ? Number(lancamento.outrosProventos) : undefined,
+        adiantamentos: lancamento.adiantamentos ? Number(lancamento.adiantamentos) : undefined,
+        descontosInformados: lancamento.descontos ? Number(lancamento.descontos) : undefined,
+      })
+      toast.push('Folha lancada e salva.', 'sucesso')
+      setLancamento(null)
+      await apurar()
+    } catch (err) {
+      toast.push(err instanceof Error ? err.message : 'Erro ao salvar lancamento.', 'erro')
+    } finally {
+      setSalvandoLancamento(false)
+    }
+  }
+
+  function imprimirHolerite(item: ResultadoFolha) {
     const linhas = (titulo: string, verbas: { descricao: string; referencia?: string; valor: number }[]) =>
       verbas.length === 0
         ? `<tr><td colspan="3" style="padding:6px 0;color:#888">${titulo}: nenhum</td></tr>`
@@ -117,7 +225,7 @@ export function FolhaPage() {
             )
             .join('')
 
-    const nomeEmpresa = empresa?.nome || BRAND.name
+    const nomeEmpresa = empresa?.nome || 'Recibo de pagamento'
     const cnpjEmpresa = empresa?.cnpj ? `CNPJ ${formatCnpj(empresa.cnpj)}` : ''
     const contato = empresa?.email_contato || empresa?.telefone || ''
     const logoHtml = empresa?.logo_url
@@ -168,24 +276,13 @@ export function FolhaPage() {
       <table><thead><tr><th>Descricao</th><th>Referencia</th><th style="text-align:right">Valor</th></tr></thead><tbody>${linhas('Proventos', item.proventos)}</tbody></table>
       <h3>Descontos</h3>
       <table><thead><tr><th>Descricao</th><th>Referencia</th><th style="text-align:right">Valor</th></tr></thead><tbody>${linhas('Descontos', item.descontos)}</tbody></table>
-      ${
-        incluirEncargos
-          ? `<h3>Encargos (patronal)</h3>
-      <table><thead><tr><th>Descricao</th><th>Referencia</th><th style="text-align:right">Valor</th></tr></thead><tbody>${linhas('Encargos', item.encargos)}</tbody></table>`
-          : ''
-      }
       <div class="totais">
         <div class="box"><span>Proventos</span><strong>${formatMoney(item.totalProventos)}</strong></div>
         <div class="box"><span>Descontos</span><strong>${formatMoney(item.totalDescontos)}</strong></div>
-        ${
-          incluirEncargos
-            ? `<div class="box"><span>Encargos</span><strong>${formatMoney(item.totalEncargos)}</strong></div>`
-            : ''
-        }
         <div class="box destaque"><span>Liquido a receber</span><strong>${formatMoney(item.valorLiquido)}</strong></div>
       </div>
       <div class="rodape"><div class="assinatura">${item.colaborador_nome.toUpperCase()}</div></div>
-      <p class="gerado">Documento gerado por ${BRAND.name} em ${new Date().toLocaleString('pt-BR')}.</p>
+      <p class="gerado">Documento gerado em ${new Date().toLocaleString('pt-BR')}.</p>
       </body></html>`
 
     const w = window.open('', '_blank', 'width=800,height=900')
@@ -206,7 +303,7 @@ export function FolhaPage() {
         descricao={
           somenteEu
             ? 'Seus proventos, descontos e valor liquido por competencia.'
-            : 'Apuracao com proventos, descontos e encargos CLT.'
+            : 'Lance os descontos informados pelo contador e gere os holerites.'
         }
         icon={Wallet}
         acao={
@@ -230,18 +327,9 @@ export function FolhaPage() {
         }
       />
 
-      <div
-        className={
-          somenteEu
-            ? 'grid gap-4 sm:grid-cols-3'
-            : 'grid gap-4 sm:grid-cols-2 xl:grid-cols-4'
-        }
-      >
+      <div className={somenteEu ? 'grid gap-4 sm:grid-cols-3' : 'grid gap-4 sm:grid-cols-3'}>
         <StatCard titulo="Proventos" valor={formatMoney(totais.proventos)} icon={BadgeDollarSign} />
         <StatCard titulo="Descontos" valor={formatMoney(totais.descontos)} icon={FileText} tom="warning" />
-        {!somenteEu && (
-          <StatCard titulo="Encargos" valor={formatMoney(totais.encargos)} icon={Receipt} tom="destructive" />
-        )}
         <StatCard titulo="Liquido" valor={formatMoney(totais.liquido)} icon={Wallet} tom="success" />
       </div>
 
@@ -265,7 +353,6 @@ export function FolhaPage() {
                   <Th>Contrato</Th>
                   <Th className="text-right">Proventos</Th>
                   <Th className="text-right">Descontos</Th>
-                  {!somenteEu && <Th className="text-right">Encargos</Th>}
                   <Th className="text-right">Liquido</Th>
                   <Th />
                 </tr>
@@ -275,22 +362,24 @@ export function FolhaPage() {
                   <tr key={i.colaborador_id} className="border-t border-border">
                     <Td className="font-semibold">{i.colaborador_nome}</Td>
                     <Td>
-                      <Badge variant={i.registraEncargos ? 'default' : 'secondary'}>{i.tipo_contrato}</Badge>
+                      <Badge variant="secondary">{i.tipo_contrato}</Badge>
                     </Td>
                     <Td className="text-right tabular-nums">{formatMoney(i.totalProventos)}</Td>
                     <Td className="text-right tabular-nums text-muted-foreground">
                       {formatMoney(i.totalDescontos)}
                     </Td>
-                    {!somenteEu && (
-                      <Td className="text-right tabular-nums text-muted-foreground">
-                        {formatMoney(i.totalEncargos)}
-                      </Td>
-                    )}
                     <Td className="text-right font-extrabold tabular-nums">{formatMoney(i.valorLiquido)}</Td>
                     <Td className="text-right">
-                      <Button size="sm" variant="outline" onClick={() => setDetalhe(i)}>
-                        <FileText className="h-3.5 w-3.5" /> Holerite
-                      </Button>
+                      <div className="flex justify-end gap-1.5">
+                        {!somenteEu && (
+                          <Button size="sm" variant="outline" onClick={() => abrirLancamento(i)}>
+                            <Pencil className="h-3.5 w-3.5" /> Lancar
+                          </Button>
+                        )}
+                        <Button size="sm" variant="outline" onClick={() => setDetalhe(i)}>
+                          <FileText className="h-3.5 w-3.5" /> Holerite
+                        </Button>
+                      </div>
                     </Td>
                   </tr>
                 ))}
@@ -308,7 +397,7 @@ export function FolhaPage() {
         className="sm:max-w-2xl"
         footer={
           detalhe && (
-            <Button onClick={() => imprimirHolerite(detalhe, !somenteEu)}>
+            <Button onClick={() => imprimirHolerite(detalhe)}>
               <Printer className="h-4 w-4" /> Imprimir
             </Button>
           )
@@ -324,28 +413,104 @@ export function FolhaPage() {
             )}
             <Secao titulo="Proventos" verbas={detalhe.proventos} />
             <Secao titulo="Descontos" verbas={detalhe.descontos} />
-            {!somenteEu && detalhe.encargos.length > 0 && (
-              <Secao titulo="Encargos (patronal)" verbas={detalhe.encargos} />
-            )}
-            <div className={`grid grid-cols-2 gap-2 ${somenteEu ? 'sm:grid-cols-3' : 'sm:grid-cols-4'}`}>
+            <div className="grid grid-cols-3 gap-2">
               <Total titulo="Proventos" valor={detalhe.totalProventos} />
               <Total titulo="Descontos" valor={detalhe.totalDescontos} />
-              {!somenteEu && <Total titulo="Encargos" valor={detalhe.totalEncargos} />}
               <Total titulo="Liquido" valor={detalhe.valorLiquido} destaque />
             </div>
+          </div>
+        )}
+      </Dialog>
+
+      <Dialog
+        open={Boolean(lancamento)}
+        onClose={() => setLancamento(null)}
+        title={lancamento ? `Lancar folha - ${lancamento.nome}` : ''}
+        description={competenciaLabel(competencia)}
+      >
+        {lancamento && (
+          <div className="space-y-3">
+            {lancamento.tipo === 'EMPREITA' && (
+              <>
+                <div className="rounded-xl bg-muted/60 p-3 text-sm">
+                  Valor combinado:{' '}
+                  <strong>{formatMoney(lancamento.valorContrato)}</strong>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Percentual do contrato (%)">
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={lancamento.percentual}
+                      onChange={(e) => mudarPercentual(e.target.value)}
+                      placeholder="35"
+                    />
+                  </Field>
+                  <Field label="Valor a receber (R$)">
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={lancamento.valorEmpreita}
+                      onChange={(e) => mudarValorEmpreita(e.target.value)}
+                      placeholder="3500"
+                    />
+                  </Field>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Informe o percentual ou o valor em reais. O sistema converte automaticamente.
+                </p>
+              </>
+            )}
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Outros proventos (R$)">
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={lancamento.outrosProventos}
+                  onChange={(e) => setLancamento({ ...lancamento, outrosProventos: e.target.value })}
+                />
+              </Field>
+              <Field label="Adiantamentos (R$)">
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={lancamento.adiantamentos}
+                  onChange={(e) => setLancamento({ ...lancamento, adiantamentos: e.target.value })}
+                />
+              </Field>
+            </div>
+
+            <Field label="Descontos informados pelo contador (R$)">
+              <Input
+                type="number"
+                step="0.01"
+                value={lancamento.descontos}
+                onChange={(e) => setLancamento({ ...lancamento, descontos: e.target.value })}
+              />
+            </Field>
             <p className="text-xs text-muted-foreground">
-              Base INSS {formatMoney(detalhe.baseINSS)} - INSS {formatMoney(detalhe.valorINSS)} - Base IRRF{' '}
-              {formatMoney(detalhe.baseIRRF)} - IRRF {formatMoney(detalhe.valorIRRF)} - FGTS{' '}
-              {formatMoney(detalhe.valorFGTS)}.
-              {detalhe.proventos[0]?.referencia
-                ? ` Referencia: ${detalhe.proventos[0].referencia}.`
-                : ''}
+              O sistema nao calcula INSS, IRRF ou FGTS. Informe apenas o valor descontado. O holerite
+              e os dados ficam registrados na competencia.
             </p>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setLancamento(null)}>
+                Cancelar
+              </Button>
+              <Button onClick={salvarLancamento} disabled={salvandoLancamento}>
+                {salvandoLancamento ? 'Salvando...' : 'Salvar lancamento'}
+              </Button>
+            </div>
           </div>
         )}
       </Dialog>
     </div>
   )
+}
+
+function arredondar(v: number): number {
+  return Math.round(v * 100) / 100
 }
 
 function Secao({

@@ -75,7 +75,7 @@ export const NAV_ITEMS: NavItem[] = [
   },
   {
     to: ROUTES.obras,
-    label: 'Obras',
+    label: 'Locais',
     icon: Search,
     roles: ['admin'],
   },

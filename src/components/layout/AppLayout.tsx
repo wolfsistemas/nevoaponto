@@ -113,7 +113,7 @@ export function AppLayout({ children }: { children?: ReactNode }) {
       {/* Drawer mobile */}
       {menuAberto && (
         <div className="no-print fixed inset-0 z-40 lg:hidden">
-          <div className="absolute inset-0 bg-foreground/40 backdrop-blur-sm" onClick={() => setMenuAberto(false)} />
+          <div className="absolute inset-0 bg-black/60" onClick={() => setMenuAberto(false)} />
           <div className="absolute left-0 top-0 h-full w-72 border-r border-border bg-card p-4 animate-fade-in">
             <div className="flex items-center justify-between">
               <Logo />

@@ -16,7 +16,7 @@ export function PagamentosPage() {
   const [processando, setProcessando] = useState<string | null>(null)
 
   const nomeColaborador = (id: string) => colaboradores.find((c) => c.id === id)?.nome ?? '-'
-  const nomeObra = (id?: string | null) => obras.find((o) => o.id === id)?.nome ?? 'Sem obra'
+  const nomeObra = (id?: string | null) => obras.find((o) => o.id === id)?.nome ?? 'Sem local'
 
   const kpis = useMemo(() => {
     const aPagar = lancamentos.filter((l) => l.status === 'PENDENTE' && l.tipo === 'DESPESA')
@@ -56,7 +56,7 @@ export function PagamentosPage() {
     <div className="animate-fade-in">
       <PageHeader
         titulo="Pagamentos"
-        descricao="Fechamentos de folha e lancamentos financeiros por obra."
+        descricao="Fechamentos de folha e lancamentos financeiros por local."
         icon={BadgeDollarSign}
       />
 

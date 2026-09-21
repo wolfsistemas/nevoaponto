@@ -33,10 +33,10 @@ export function ObrasPage() {
         lat: form.lat != null ? Number(form.lat) : null,
         lng: form.lng != null ? Number(form.lng) : null,
       })
-      toast.push('Obra salva.', 'sucesso')
+      toast.push('Local salvo.', 'sucesso')
       setForm(null)
     } catch {
-      toast.push('Erro ao salvar obra.', 'erro')
+      toast.push('Erro ao salvar local.', 'erro')
     } finally {
       setSalvando(false)
     }
@@ -67,26 +67,30 @@ export function ObrasPage() {
   }
 
   async function remover(o: Obra) {
-    if (!confirm(`Remover a obra "${o.nome}"?`)) return
+    if (!confirm(`Remover o local "${o.nome}"?`)) return
     await api.removeObra(o.id)
-    toast.push('Obra removida.', 'info')
+    toast.push('Local removido.', 'info')
   }
 
   return (
     <div className="animate-fade-in">
       <PageHeader
-        titulo="Obras"
+        titulo="Locais de trabalho"
         descricao="Locais, coordenadas e raio de tolerancia do ponto."
         icon={Building2}
         acao={
           <Button onClick={() => setForm({ nome: '', raio_tolerancia: 80, ativo: true })}>
-            <Plus className="h-4 w-4" /> Nova obra
+            <Plus className="h-4 w-4" /> Novo local
           </Button>
         }
       />
 
       {obras.length === 0 ? (
-        <EmptyState icon={Building2} titulo="Nenhuma obra cadastrada" descricao="Cadastre a primeira obra para vincular colaboradores." />
+        <EmptyState
+          icon={Building2}
+          titulo="Nenhum local cadastrado"
+          descricao="Cadastre o primeiro local de trabalho para vincular os colaboradores."
+        />
       ) : (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {obras.map((o) => {
@@ -157,12 +161,12 @@ export function ObrasPage() {
       <Dialog
         open={Boolean(form)}
         onClose={() => setForm(null)}
-        title={form?.id ? 'Editar obra' : 'Nova obra'}
+        title={form?.id ? 'Editar local' : 'Novo local'}
         description="Informe os dados e, se quiser, capture a localizacao atual."
       >
         {form && (
           <form onSubmit={salvar} className="space-y-3">
-            <Field label="Nome da obra">
+            <Field label="Nome do local">
               <Input value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} required />
             </Field>
             <Field label="Endereco">
@@ -209,6 +213,22 @@ export function ObrasPage() {
                   {capturando ? 'Capturando...' : 'Usar localizacao atual'}
                 </Button>
               </div>
+            </div>
+
+            <div className="rounded-xl border border-warning/40 bg-warning/10 p-3 text-xs text-muted-foreground">
+              Se o computador nao tiver GPS, abra o sistema pelo celular para capturar a localizacao.
+              Se preferir, busque o endereco no{' '}
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                  form.endereco || form.nome || '',
+                )}`}
+                target="_blank"
+                rel="noreferrer"
+                className="font-bold text-primary hover:underline"
+              >
+                Google Maps
+              </a>{' '}
+              e cole a latitude e a longitude nos campos acima.
             </div>
 
             <div className="grid grid-cols-2 gap-3">
