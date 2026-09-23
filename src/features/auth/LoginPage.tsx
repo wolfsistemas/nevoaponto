@@ -23,9 +23,9 @@ export function LoginPage() {
   const [carregando, setCarregando] = useState(false)
   const [bioOk, setBioOk] = useState(false)
 
-  // O Super Admin tem um portal exclusivo (admin.html) fora do app comum.
-  // O redirecionamento acontece apenas apos o login validar as credenciais,
-  // reaproveitando a sessao ja aberta (nao pede login duas vezes).
+  // Apos validar usuario e senha, o sistema identifica o perfil e redireciona
+  // internamente: o Super Admin vai para o painel da plataforma; os demais para
+  // o app comum. Sem recarregar a pagina (navegacao fluida).
   useEffect(() => {
     biometriaDisponivel().then(setBioOk).catch(() => setBioOk(false))
   }, [])
@@ -41,7 +41,7 @@ export function LoginPage() {
       return
     }
     if (res.role === 'superadmin') {
-      window.location.assign(`${import.meta.env.BASE_URL}admin.html`)
+      navigate(ROUTES.superadmin, { replace: true })
       return
     }
     navigate(ROUTES.dashboard, { replace: true })

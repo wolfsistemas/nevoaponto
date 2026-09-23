@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider, useAuth } from '@/features/auth/AuthContext'
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
@@ -28,22 +27,11 @@ import { ROUTES } from '@/lib/brand'
 
 function RotaPainel() {
   const { user } = useAuth()
-  if (user?.role === 'superadmin') return <IrParaAdmin />
+  // O Super Admin cai direto no painel da plataforma (redirecionamento interno).
+  if (user?.role === 'superadmin') return <Navigate to={ROUTES.superadmin} replace />
   // O funcionario nao tem visao geral: vai direto para "Bater ponto".
   if (user?.role === 'funcionario') return <Navigate to={ROUTES.ponto} replace />
   return <DashboardPage />
-}
-
-// O Super Admin vive em um portal separado (admin.html).
-function IrParaAdmin() {
-  useEffect(() => {
-    window.location.replace(`${import.meta.env.BASE_URL}admin.html`)
-  }, [])
-  return (
-    <div className="flex h-screen items-center justify-center">
-      <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted border-t-primary" />
-    </div>
-  )
 }
 
 export default function App() {
